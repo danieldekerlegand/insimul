@@ -250,7 +250,6 @@ import {
   KEY_CAMERA_MODE,
   KEY_PHOTO_BOOK,
   KEY_CYCLE_VEHICLE,
-  KEY_PHYSICAL_ACTION,
 } from "@shared/game-engine/logic/KeyboardMap";
 import { BabylonPhotographySystem, type SceneObject } from "@shared/game-engine/rendering/BabylonPhotographySystem";
 import { BabylonPhotoBookPanel } from "@shared/game-engine/rendering/BabylonPhotoBookPanel";
@@ -583,6 +582,8 @@ export class BabylonGame {
   private questWaypointManager: QuestWaypointManager | null = null;
   /** Cached dynamic waypoint positions for minimap markers (resolved by DynamicQuestWaypointDirector) */
   private _resolvedWaypointPositions: Map<string, { x: number; z: number }> = new Map();
+  /** Cached named locations (Notice Board, settlements, etc.) for waypoint director resolution */
+  private _namedLocations: Map<string, { x: number; y?: number; z: number }> = new Map();
   private questLanguageFeedbackTracker: QuestLanguageFeedbackTracker | null = null;
   private listeningComprehensionManager: ListeningComprehensionManager | null = null;
   private buildingGenerator: ProceduralBuildingGenerator | null = null;
@@ -657,6 +658,10 @@ export class BabylonGame {
   private onboardingResult: OnboardingLaunchResult | null = null;
   private onboardingActive: boolean = false;
   private assessmentActive: boolean = false;
+  /** Tracks player turns in the current conversation for mid-chat objective notifications. */
+  private _convTurnCount: number = 0;
+  /** Tracks which quest objectives have already shown a mid-conversation completion toast. */
+  private _convObjectiveNotified: Set<string> = new Set();
   /** NPC ID highlighted for the current assessment conversation phase. */
   private _assessmentTargetNpcId: string | null = null;
   /** Pending periodic assessment event (waiting for player accept/postpone). */
@@ -668,6 +673,13 @@ export class BabylonGame {
   private playerController: CharacterController | null = null;
   private playerMesh: Mesh | null = null;
   private playerHealthBar: HealthBar | null = null;
+
+  // Background music
+  private musicSettlement1: Sound | null = null;
+  private musicSettlement2: Sound | null = null;
+  private musicWilderness: Sound | null = null;
+  private musicInitialized = false;
+  private currentMusicZone: 'settlement' | 'wilderness' | null = null;
   private playerEnergy: number = INITIAL_ENERGY;
   private playerGold: number = 100;
   private playerHealth: number = 100;
@@ -681,6 +693,8 @@ export class BabylonGame {
 
   // NPCs
   private npcMeshes: Map<string, NPCInstance> = new Map();
+  /** Reverse index: buildingId → set of NPC IDs currently inside that building. */
+  private buildingOccupants: Map<string, Set<string>> = new Map();
   private npcInfos: NPCDisplayInfo[] = [];
   private npcHealthBars: Map<string, HealthBar> = new Map();
   private selectedNPCId: string | null = null;
@@ -842,6 +856,7 @@ export class BabylonGame {
   private savedOverworldPosition: Vector3 | null = null;
   private savedOverworldRotationY: number = 0;
   private savedOverworldCameraAlpha: number = 0;
+  private savedOverworldCameraRadius: number = 10;
   private isInsideBuilding: boolean = false;
   private interiorDoorTrigger: Mesh | null = null;
   private interiorItemManager: InteriorItemManager | null = null;
@@ -899,6 +914,8 @@ export class BabylonGame {
   private keyUpHandler: ((event: KeyboardEvent) => void) | null = null;
   private resizeHandler: (() => void) | null = null;
   private pointerObserver: Observer<PointerInfo> | null = null;
+  private hoverObserver: Observer<PointerInfo> | null = null;
+  private hoveredMesh: AbstractMesh | null = null;
   private debugHoverObserver: Observer<PointerInfo> | null = null;
   private renderObserver: Observer<Scene> | null = null;
   private npcBehaviorInterval: number | null = null;
@@ -1103,6 +1120,7 @@ export class BabylonGame {
       await this.setupKeyboardHandlers();
       this.setupPointerHandlers();
       this.setupUpdateLoop();
+      this.initMusic();
 
       // Load action & building label translations for language-learning worlds
       if (isLanguageLearningWorld(this.worldData)) {
@@ -2375,7 +2393,24 @@ export class BabylonGame {
         description: displayName,
         duration: 1500
       });
+      // Show crosshair in first-person, hide in other modes
+      if (mode === 'first_person') {
+        this.guiManager?.showCrosshair();
+      } else {
+        this.guiManager?.hideCrosshair();
+      }
     });
+
+    // When pointer lock changes, switch crosshair between centered and free-move
+    this.cameraManager.onPointerLockChanged = (cursorFree: boolean) => {
+      if (cursorFree) {
+        // Pointer lock released — crosshair becomes a movable cursor
+        this.guiManager?.setCrosshairFreeMode(true);
+      } else {
+        // Pointer lock engaged — crosshair snaps back to center
+        this.guiManager?.setCrosshairFreeMode(false);
+      }
+    };
 
     this.sceneStatus = "ready";
   }
@@ -2384,6 +2419,7 @@ export class BabylonGame {
     scene.clearColor = new Color4(0.75, 0.75, 0.75, 1);
     scene.ambientColor = new Color3(1, 1, 1);
     scene.collisionsEnabled = true;
+
 
     // Initialize building collision system
     this.buildingCollisionSystem = new BuildingCollisionSystem(scene);
@@ -2524,10 +2560,9 @@ export class BabylonGame {
     // Performance: enable frustum culling (default but ensure not disabled)
     scene.skipFrustumClipping = false;
 
-    // Performance: disable constant pointer-move picking (expensive per-frame raycast)
+    // Performance: disable constant mesh-under-pointer updates (expensive per-frame raycast)
     scene.constantlyUpdateMeshUnderPointer = false;
-    // Only pick on pointer down, not on move
-    scene.skipPointerMovePicking = true;
+    // Pointer-move picking is enabled later in setupPointerHandlers for hover cursors
 
     // Performance: pointer picking should only test pickable meshes
     scene.pointerDownPredicate = (mesh) => {
@@ -2700,6 +2735,61 @@ export class BabylonGame {
     });
   }
 
+  /**
+   * Paint ground mesh vertices under roads a dark color so that z-fighting
+   * between roads and ground is invisible (both surfaces are similar color).
+   */
+  private paintGroundUnderRoads(): void {
+    if (!this.scene || !this.roadGenerator) return;
+    const ground = this.scene.getMeshByName('ground') as Mesh | null;
+    if (!ground) return;
+
+    const positions = ground.getVerticesData('position');
+    if (!positions) return;
+
+    const vertexCount = positions.length / 3;
+
+    // Get or create vertex color buffer
+    let colors = ground.getVerticesData('color');
+    if (!colors || colors.length !== vertexCount * 4) {
+      colors = new Float32Array(vertexCount * 4);
+      // Initialize to white (neutral — won't affect existing texture)
+      for (let i = 0; i < vertexCount; i++) {
+        colors[i * 4] = 1;
+        colors[i * 4 + 1] = 1;
+        colors[i * 4 + 2] = 1;
+        colors[i * 4 + 3] = 1;
+      }
+    } else {
+      colors = new Float32Array(colors);
+    }
+
+    // Dark road color (matches asphalt)
+    // Black vertex color — multiplied with any texture produces black,
+    // so z-fighting between road and ground is invisible
+    const roadR = 0, roadG = 0, roadB = 0;
+
+    for (let i = 0; i < vertexCount; i++) {
+      const x = positions[i * 3];
+      const z = positions[i * 3 + 2];
+      if (this.roadGenerator.isPointOnRoad(x, z, 1)) {
+        colors[i * 4] = roadR;
+        colors[i * 4 + 1] = roadG;
+        colors[i * 4 + 2] = roadB;
+        colors[i * 4 + 3] = 1;
+      }
+    }
+
+    ground.setVerticesData('color', colors, true);
+
+    // Ensure ground material uses vertex colors
+    const mat = ground.material as StandardMaterial | null;
+    if (mat) {
+      // Vertex colors multiply with diffuseColor/texture automatically
+      // when the color vertex buffer is present
+    }
+  }
+
   private rescaleGround(): void {
     if (!this.scene) return;
 
@@ -2842,6 +2932,21 @@ export class BabylonGame {
       inst.isPickable = false;
       this.worldPropMeshes.push(inst);
     }
+
+    // Invisible collision cylinder at trunk position (instances don't support checkCollisions)
+    const trunkRadius = 0.4 * scale;
+    const trunkHeight = 3.0 * scale;
+    const collider = MeshBuilder.CreateCylinder(
+      `${treeId}_collider`,
+      { diameter: trunkRadius * 2, height: trunkHeight, tessellation: 6 },
+      scene,
+    );
+    collider.position = new Vector3(position.x, position.y + trunkHeight / 2, position.z);
+    collider.isVisible = false;
+    collider.isPickable = false;
+    collider.checkCollisions = true;
+    collider.freezeWorldMatrix();
+    this.worldPropMeshes.push(collider);
   }
 
   /**
@@ -3725,6 +3830,9 @@ export class BabylonGame {
       if (this.conversationNPCId) {
         this.eventBus.emit({ type: 'conversation_turn', npcId: this.conversationNPCId, keywords });
       }
+      // Track turn count and check if any quest conversation objectives are now met
+      this._convTurnCount++;
+      this.checkConversationObjectivesMet();
     });
     this.chatPanel.setOnNpcConversationTurn((npcId: string, topicTag: string | undefined) => {
       this.questObjectManager?.trackNpcConversationTurn(npcId, topicTag);
@@ -3832,12 +3940,10 @@ export class BabylonGame {
       }
 
       // If assessment is active, check if the conversation met minimum requirements
-      console.log(`[ConversationEnd] assessmentActive=${this.assessmentActive}, playerMessageCount=${result.playerMessageCount}, totalExchanges=${result.totalExchanges}, assessmentTargetNpc=${this._assessmentTargetNpcId}, conversationNpcId=${this.conversationNPCId}`);
       if (this.assessmentActive) {
         const npcId = this.conversationNPCId || '';
         const turnCount = result.playerMessageCount ?? result.totalExchanges ?? 0;
         const MIN_ASSESSMENT_TURNS = 4; // Player must contribute at least 4 messages
-        console.log(`[ConversationEnd] turnCount=${turnCount}, MIN=${MIN_ASSESSMENT_TURNS}, willComplete=${turnCount >= MIN_ASSESSMENT_TURNS}`);
 
         if (turnCount >= MIN_ASSESSMENT_TURNS) {
           // Derive a normalized score (0-10) from conversation metrics
@@ -3926,6 +4032,23 @@ export class BabylonGame {
     // Initialize quest object manager
     this.questObjectManager = new QuestObjectManager(scene);
     this.questObjectManager.setPointInBuildingCheck((x, z) => this.isPointInsideAnyBuilding(x, z));
+
+    // Wire location resolver so quest items spawn at named locations (Notice Board, buildings, etc.)
+    this.questObjectManager.setLocationResolver((locationName: string) => {
+      // Check building data first
+      for (const [, data] of this.buildingData) {
+        const meta = data.metadata;
+        if (!meta) continue;
+        const name = (meta.businessName || meta.name || '').toLowerCase();
+        if (name && (name.includes(locationName.toLowerCase()) || locationName.toLowerCase().includes(name))) {
+          return data.position.clone();
+        }
+      }
+      // Check cached named locations
+      const named = this._namedLocations.get(locationName);
+      if (named) return new Vector3(named.x, 0, named.z);
+      return null;
+    });
 
     // Initialize quest hotspot manager for quest-spawned temporary hotspots
     if (this.interactionPrompt) {
@@ -4024,6 +4147,9 @@ export class BabylonGame {
 
     // Initialize examine overlay
     this.examineOverlay = new ExamineOverlay(scene);
+    this.examineOverlay.setActiveSceneProvider(() =>
+      this.interiorSceneManager?.getActiveScene() ?? this.scene!
+    );
 
     // Initialize quest offer panel
     this.questOfferPanel = new QuestOfferPanel(scene);
@@ -4730,8 +4856,7 @@ export class BabylonGame {
         instance.isBeingEscorted = true;
         // Bring NPC outside if currently inside a building
         if (instance.isInsideBuilding) {
-          instance.isInsideBuilding = false;
-          instance.insideBuildingId = undefined;
+          this.npcExitBuilding(npcId);
           if (instance.mesh) {
             instance.mesh.setEnabled(true);
             instance.mesh.isVisible = true;
@@ -5041,8 +5166,7 @@ export class BabylonGame {
         if (!bestId && fallbackId) {
           const instance = this.npcMeshes.get(fallbackId);
           if (instance) {
-            instance.isInsideBuilding = false;
-            instance.insideBuildingId = undefined;
+            this.npcExitBuilding(fallbackId);
             instance.mesh.setEnabled(true);
             if (instance.billboardLOD) instance.billboardLOD.setEnabled(true);
             // Move NPC near the player so they're reachable
@@ -5319,14 +5443,13 @@ Requirements:
     this.roadGenerator = new RoadGenerator(scene);
     this.riverGenerator = new RiverGenerator(scene);
     this.waterRenderer = new WaterRenderer(scene);
-    // Initialize interior scene system — must happen before BuildingEntrySystem
-    // which depends on interiorGenerator.
+    // Initialize interior system — interiors are generated in the overworld scene
+    // at Y=500+ so GUI, chat, and all game systems work without scene switching.
     this.interiorSceneManager = new InteriorSceneManager(this.engine!, scene);
-    const interiorScene = this.interiorSceneManager.getInteriorScene();
-    this.interiorGenerator = new BuildingInteriorGenerator(interiorScene);
-    this.interiorGenerator.setTargetScene(interiorScene, true);
-    this.interiorItemManager = new InteriorItemManager(interiorScene, this.objectModelTemplates, this.objectModelOriginalHeights, this.objectModelScaleHints);
-    this.bookSpawnManager = new BookSpawnManager(interiorScene);
+    this.interiorGenerator = new BuildingInteriorGenerator(scene);
+    // Don't use dedicated scene — interiors stack at Y=500+ in the overworld
+    this.interiorItemManager = new InteriorItemManager(scene, this.objectModelTemplates, this.objectModelOriginalHeights, this.objectModelScaleHints);
+    this.bookSpawnManager = new BookSpawnManager(scene);
     this.fetchWorldTextsForBooks();
     this.buildingEntrySystem = new BuildingEntrySystem(scene, this.interiorGenerator, {
       onTeleportPlayer: (pos: Vector3) => {
@@ -5347,8 +5470,38 @@ Requirements:
       onEnterBuilding: (buildingId: string, interior: InteriorLayout) => {
         this.activeInterior = interior;
         this.isInsideBuilding = true;
+        this.activeBuildingId = buildingId;
         // Update quest markers for building interior
         this.questObjectManager?.onEnterBuilding(buildingId, interior.position);
+
+        // Load NPC clones into the overworld scene at interior positions
+        if (this.scene && this.interiorNPCManager) {
+          const placedNPCs = this.interiorNPCManager.getPlacedNPCs();
+          this.interiorNPCClones = [];
+          const loadPromises = placedNPCs.map(async (placed) => {
+            try {
+              const npcInstance = this.npcMeshes.get(placed.npcId);
+              const character = npcInstance?.characterData || placed.characterData;
+              if (!character) return;
+              const npcMesh = await this.loadNPCForInterior(
+                character,
+                this.scene!,
+                placed.interiorPosition,
+                placed.mesh.rotation,
+                placed.animationState,
+              );
+              if (npcMesh) {
+                this.interiorNPCClones.push(npcMesh);
+                const cd = npcInstance?.characterData;
+                const name = cd ? `${cd.firstName || ''} ${cd.lastName || ''}`.trim() : placed.npcId;
+                this.interactionPrompt?.registerNPC({ id: placed.npcId, name, mesh: npcMesh });
+              }
+            } catch (err) {
+              console.warn(`[Interior] Failed to load NPC clone ${placed.npcId}:`, err);
+            }
+          });
+          Promise.all(loadPromises);
+        }
       },
       onExitBuilding: () => {
         this.activeInterior = null;
@@ -5435,7 +5588,8 @@ Requirements:
     this.buildingEntrySystem.setInteriorNPCManager(
       this.interiorNPCManager,
       () => this.npcMeshes as any,
-      () => undefined
+      () => undefined,
+      (buildingId: string) => this.getNPCsInBuilding(buildingId)
     );
     this.buildingEntrySystem.setBusinessBehaviorSystem(this.businessBehaviorSystem);
 
@@ -6730,7 +6884,7 @@ Requirements:
             businessName: business.name,
             settlementId: settlement.id,
             ownerId: business.ownerId,
-            employees: business.employees || [],
+            employees: business.employeeIds || business.employees || [],
             specWidth: buildingSpec.width,
             specDepth: buildingSpec.depth,
             hasPorch: buildingSpec.hasPorch,
@@ -7009,11 +7163,11 @@ Requirements:
               const treePos = this.projectToGround(tx, tz);
               this.placeAssetTreeAtPosition(scene, treePos, settlement.id, parkRng);
             }
-            // Scatter rocks within the grove lot bounds (constrained to inner 50% to avoid street edges)
-            const rockCount = Math.max(2, Math.floor((pw * pd) / 150));
+            // Scatter a few rocks within the grove lot bounds (constrained to inner 30% to avoid street edges)
+            const rockCount = Math.max(1, Math.floor((pw * pd) / 400));
             for (let ri = 0; ri < rockCount; ri++) {
-              const rx = parkPos.x + (parkRng() - 0.5) * pw * 0.5;
-              const rz = parkPos.z + (parkRng() - 0.5) * pd * 0.5;
+              const rx = parkPos.x + (parkRng() - 0.5) * pw * 0.3;
+              const rz = parkPos.z + (parkRng() - 0.5) * pd * 0.3;
               const rockPos = this.projectToGround(rx, rz);
               const rockScale = 0.5 + parkRng() * 0.8;
               const rockId = `grove_rock_${settlement.id}_${ri}_${Math.random().toString(36).slice(2, 6)}`;
@@ -7039,6 +7193,48 @@ Requirements:
                   rock.rotation.y = parkRng() * Math.PI * 2;
                   rock.isPickable = false;
                   this.worldPropMeshes.push(rock);
+                }
+                // Add collision boxes — one per child for multi-rock sets, or single box for single rocks
+                const childMeshes = chosen.getChildMeshes();
+                if (childMeshes.length > 1) {
+                  const rotY = parkRng() * Math.PI * 2;
+                  const cosR = Math.cos(rotY), sinR = Math.sin(rotY);
+                  for (let ci = 0; ci < childMeshes.length; ci++) {
+                    const child = childMeshes[ci];
+                    child.computeWorldMatrix(true);
+                    const bi = child.getBoundingInfo();
+                    const childSize = bi.boundingBox.maximumWorld.subtract(bi.boundingBox.minimumWorld);
+                    const childCenter = bi.boundingBox.centerWorld;
+                    const localX = childCenter.x * xzScale;
+                    const localZ = childCenter.z * xzScale;
+                    const worldX = rockPos.x + localX * cosR - localZ * sinR;
+                    const worldZ = rockPos.z + localX * sinR + localZ * cosR;
+                    const colliderSize = Math.max(0.5, Math.max(childSize.x, childSize.z) * xzScale);
+                    const colliderHeight = Math.max(0.3, childSize.y * yScale);
+                    const rc = MeshBuilder.CreateBox(
+                      `${rockId}_collider_${ci}`,
+                      { width: colliderSize, height: colliderHeight, depth: colliderSize },
+                      scene,
+                    );
+                    rc.position = new Vector3(worldX, rockPos.y + colliderHeight / 2, worldZ);
+                    rc.isVisible = false;
+                    rc.isPickable = false;
+                    rc.checkCollisions = true;
+                    rc.freezeWorldMatrix();
+                    this.worldPropMeshes.push(rc);
+                  }
+                } else {
+                  const rockCollider = MeshBuilder.CreateBox(
+                    `${rockId}_collider`,
+                    { width: xzScale, height: yScale * 0.7, depth: xzScale },
+                    scene,
+                  );
+                  rockCollider.position = new Vector3(rockPos.x, rockPos.y + yScale * 0.35, rockPos.z);
+                  rockCollider.isVisible = false;
+                  rockCollider.isPickable = false;
+                  rockCollider.checkCollisions = true;
+                  rockCollider.freezeWorldMatrix();
+                  this.worldPropMeshes.push(rockCollider);
                 }
               }
             }
@@ -7819,6 +8015,9 @@ Requirements:
 
       this.roadGenerator.generateRoads(settlementNodes, sampleHeight);
     }
+
+    // Paint ground vertices under roads dark so z-fighting is invisible
+    this.paintGroundUnderRoads();
 
     // Water generation disabled — rivers were overlapping with settlements.
     // Register any existing water meshes as fishing hotspots
@@ -9645,7 +9844,7 @@ Requirements:
         this.camera.beta = Math.PI / 3;
 
         const controller = new CharacterController(playerMesh, this.camera, this.scene, undefined, true);
-        controller.setCameraTarget(new Vector3(0, 1.6, 0));
+        controller.setCameraTarget(new Vector3(0, 1.75, 0));
         controller.setNoFirstPerson(true);
         controller.setStepOffset(0.75);
         controller.setSlopeLimit(15, 75);
@@ -9737,7 +9936,9 @@ Requirements:
           this.cameraManager.setPlayerMesh(playerMesh);
 
           // Apply world creator's camera perspective if specified
-          const perspective = (this.worldData as any)?.cameraPerspective;
+          const wd = this.worldData as any;
+          const perspective = wd?.cameraPerspective || wd?.camera_perspective
+            || this.world3DConfig?.cameraPerspective || (this.world3DConfig as any)?.camera_perspective;
           if (perspective && ['first_person', 'third_person', 'isometric', 'side_scroll', 'top_down', 'fighting'].includes(perspective)) {
             this.cameraManager.setMode(perspective as CameraMode, false);
           }
@@ -9829,8 +10030,10 @@ Requirements:
     if (this.scene) this.scene.blockMaterialDirtyMechanism = true;
 
     const total = characters.length;
-    // Load NPCs in parallel batches for faster startup
-    const BATCH_SIZE = 8;
+    // Load NPCs in parallel batches. Smaller batches for file:// (Electron exports)
+    // to avoid memory pressure from simultaneous GLTF imports.
+    const isFileProtocol = typeof window !== 'undefined' && window.location?.protocol === 'file:';
+    const BATCH_SIZE = isFileProtocol ? 2 : 8;
     for (let batchStart = 0; batchStart < total; batchStart += BATCH_SIZE) {
       const batch = characters.slice(batchStart, batchStart + BATCH_SIZE);
       this.updateLoadingScreen(`Loading NPCs... (${Math.min(batchStart + BATCH_SIZE, total)}/${total})`, 70 + Math.round((batchStart / total) * 15));
@@ -9915,8 +10118,11 @@ Requirements:
     if (text.includes('guard') || text.includes('watch') || text.includes('police') || text.includes('sheriff')) return 'guard';
     if (text.includes('soldier') || text.includes('knight') || text.includes('militia') || text.includes('army') || text.includes('warrior')) return 'soldier';
 
-    // Commerce
-    if (text.includes('merchant') || text.includes('shop') || text.includes('trader') || text.includes('vendor') || text.includes('market')) return 'merchant';
+    // Commerce — includes business owners, cashiers, and food service
+    if (text.includes('merchant') || text.includes('shop') || text.includes('trader') || text.includes('vendor') || text.includes('market')
+        || text.includes('cashier') || text.includes('owner (') || text.includes('grocer') || text.includes('baker')
+        || text.includes('butcher') || text.includes('jeweler') || text.includes('tailor') || text.includes('herbalist')
+        || text.includes('waiter') || text.includes('waitress') || text.includes('cook')) return 'merchant';
 
     // Trades & labor
     if (text.includes('farm') || text.includes('ranch') || text.includes('harvest') || text.includes('shepherd')) return 'farmer';
@@ -10069,6 +10275,7 @@ Requirements:
       root.name = `npc_${character.id}`;
       root.metadata = { npcId: character.id, npcRole: role };
       root.checkCollisions = true;
+      root.isPickable = true;
 
       // GLB imports set rotationQuaternion on meshes, which causes Babylon.js to
       // IGNORE Euler rotation (rotation.y). Clear it so rotation.y works.
@@ -10552,6 +10759,51 @@ Requirements:
     this.worldPropMeshes.push(plane);
   }
 
+  // ── Building occupant reverse index ─────────────────────────────────────────
+
+  /**
+   * Record that an NPC has entered a building.
+   * Updates both the NPC instance fields and the buildingOccupants reverse index.
+   */
+  private npcEnterBuilding(npcId: string, buildingId: string): void {
+    const instance = this.npcMeshes.get(npcId);
+    if (instance) {
+      // If NPC was in a different building, remove from old entry first
+      if (instance.insideBuildingId && instance.insideBuildingId !== buildingId) {
+        this.buildingOccupants.get(instance.insideBuildingId)?.delete(npcId);
+      }
+      instance.isInsideBuilding = true;
+      instance.insideBuildingId = buildingId;
+    }
+    if (!this.buildingOccupants.has(buildingId)) {
+      this.buildingOccupants.set(buildingId, new Set());
+    }
+    this.buildingOccupants.get(buildingId)!.add(npcId);
+  }
+
+  /**
+   * Record that an NPC has exited a building.
+   * Updates both the NPC instance fields and the buildingOccupants reverse index.
+   */
+  private npcExitBuilding(npcId: string): void {
+    const instance = this.npcMeshes.get(npcId);
+    if (instance) {
+      if (instance.insideBuildingId) {
+        this.buildingOccupants.get(instance.insideBuildingId)?.delete(npcId);
+      }
+      instance.isInsideBuilding = false;
+      instance.insideBuildingId = undefined;
+    }
+  }
+
+  /**
+   * Get IDs of all NPCs currently inside a given building (O(1) lookup).
+   */
+  getNPCsInBuilding(buildingId: string): string[] {
+    const set = this.buildingOccupants.get(buildingId);
+    return set ? Array.from(set) : [];
+  }
+
   /** Check whether a world-space XZ point falls inside any registered building footprint. */
   private isPointInsideAnyBuilding(x: number, z: number): boolean {
     for (const b of this.buildingFootprints) {
@@ -10610,6 +10862,105 @@ Requirements:
       if (dist > maxDist) maxDist = dist;
     }
     return maxDist + 20; // Add some margin beyond the furthest building
+  }
+
+  // ── Background Music ──────────────────────────────────────────────────────
+
+  private initMusic(): void {
+    if (this.musicInitialized || !this.scene) return;
+    this.musicInitialized = true;
+
+    const VOLUME_NORMAL = 0.12;
+
+    try {
+      // Unlock AudioContext on first user gesture (required by browsers)
+      const engine = this.engine;
+      if (engine) {
+        Engine.audioEngine?.unlock();
+      }
+
+      this.musicSettlement1 = new Sound(
+        'music_settlement1',
+        '/assets/audio/music/Foggy Meadows Alt LOOP.wav',
+        this.scene,
+        null,
+        { loop: true, autoplay: false, volume: VOLUME_NORMAL }
+      );
+
+      this.musicSettlement2 = new Sound(
+        'music_settlement2',
+        '/assets/audio/music/Northern Village LOOP.wav',
+        this.scene,
+        null,
+        { loop: true, autoplay: false, volume: VOLUME_NORMAL }
+      );
+
+      this.musicWilderness = new Sound(
+        'music_wilderness',
+        '/assets/audio/music/Forests LOOP.wav',
+        this.scene,
+        null,
+        { loop: true, autoplay: false, volume: VOLUME_NORMAL }
+      );
+    } catch (err) {
+      console.warn('[Music] Failed to initialize background music:', err);
+    }
+  }
+
+  /** Safely play a Sound — ignores errors from suspended AudioContext or unloaded buffers. */
+  private safePlay(sound: Sound | null): void {
+    if (!sound || sound.isPlaying) return;
+    try { sound.play(); } catch { /* AudioContext not ready or buffer not loaded */ }
+  }
+
+  private updateMusic(): void {
+    if (!this.musicInitialized || !this.playerMesh) return;
+
+    // Ensure AudioContext is unlocked (browsers suspend it until user gesture)
+    try { Engine.audioEngine?.unlock(); } catch { /* ignore */ }
+
+    const VOLUME_NORMAL = 0.12;
+    const VOLUME_CONVERSATION = 0.03;
+
+    const inConversation = !!this.conversationNPCId;
+    const targetVolume = inConversation ? VOLUME_CONVERSATION : VOLUME_NORMAL;
+
+    // Determine which zone the player is in
+    const center = this._getSettlementCenter();
+    const radius = this._getSettlementRadius();
+    let zone: 'settlement' | 'wilderness' = 'wilderness';
+    if (center) {
+      const px = this.playerMesh.position.x;
+      const pz = this.playerMesh.position.z;
+      const dist = Math.sqrt((px - center.x) ** 2 + (pz - center.z) ** 2);
+      if (dist < radius) zone = 'settlement';
+    }
+
+    // Switch zones with crossfade
+    if (zone !== this.currentMusicZone) {
+      this.currentMusicZone = zone;
+      if (zone === 'settlement') {
+        this.safePlay(this.musicSettlement1);
+        this.safePlay(this.musicSettlement2);
+        this.musicWilderness?.setVolume(0, 2);
+        this.musicSettlement1?.setVolume(targetVolume, 2);
+        this.musicSettlement2?.setVolume(targetVolume, 2);
+      } else {
+        this.safePlay(this.musicWilderness);
+        this.musicSettlement1?.setVolume(0, 2);
+        this.musicSettlement2?.setVolume(0, 2);
+        this.musicWilderness?.setVolume(targetVolume, 2);
+      }
+      return;
+    }
+
+    // Adjust volume for conversation state (smooth transition)
+    if (zone === 'settlement') {
+      this.musicSettlement1?.setVolume(targetVolume, 1);
+      this.musicSettlement2?.setVolume(targetVolume, 1);
+    } else {
+      this.musicWilderness?.setVolume(targetVolume, 1);
+    }
   }
 
   /** Generate a spawn candidate near a center point, validated against buildings. */
@@ -10779,43 +11130,50 @@ Requirements:
   }
 
   /**
-   * Handle E-key building interaction: enter the nearest building or exit
-   * the current interior.
+   * Handle building interaction: enter the specified or nearest building, or
+   * exit the current interior.
+   *
+   * @param knownBuildingMesh If provided (from InteractionPromptSystem), skip
+   *   the proximity search and enter this building directly.
    */
-  private async handleBuildingInteraction(): Promise<void> {
+  private async handleBuildingInteraction(knownBuildingMesh?: Mesh): Promise<void> {
     // If already inside a building, exit
     if (this.isInsideBuilding) {
       await this.exitBuilding();
       return;
     }
 
-    if (!this.playerMesh) return;
+    // Use the building already identified by the prompt system when available
+    let nearestBuilding: Mesh | null = knownBuildingMesh ?? null;
 
-    const playerPos = this.playerMesh.position;
-    const maxDist = 8;
-    let nearestBuilding: Mesh | null = null;
-    let nearestDist = maxDist;
+    if (!nearestBuilding) {
+      if (!this.playerMesh) return;
 
-    // Search buildingData map (populated when buildings are placed in the world)
-    this.buildingData.forEach((data) => {
-      const meta = data.metadata;
-      if (!meta?.buildingId || !meta?.buildingType) return;
-      const dist = Vector3.Distance(playerPos, data.position);
-      if (dist < nearestDist) {
-        nearestDist = dist;
-        nearestBuilding = data.mesh;
-      }
-    });
+      const playerPos = this.playerMesh.position;
+      const maxDist = 8;
+      let nearestDist = maxDist;
 
-    // Fallback: scan all scene meshes for any building with metadata
-    if (!nearestBuilding && this.scene) {
-      for (const mesh of this.scene.meshes) {
-        const meta = mesh.metadata;
-        if (!meta?.buildingId || !meta?.buildingType) continue;
-        const dist = Vector3.Distance(playerPos, mesh.position);
+      // Search buildingData map (populated when buildings are placed in the world)
+      this.buildingData.forEach((data) => {
+        const meta = data.metadata;
+        if (!meta?.buildingId || !meta?.buildingType) return;
+        const dist = Vector3.Distance(playerPos, data.position);
         if (dist < nearestDist) {
           nearestDist = dist;
-          nearestBuilding = mesh as Mesh;
+          nearestBuilding = data.mesh;
+        }
+      });
+
+      // Fallback: scan all scene meshes for any building with metadata
+      if (!nearestBuilding && this.scene) {
+        for (const mesh of this.scene.meshes) {
+          const meta = mesh.metadata;
+          if (!meta?.buildingId || !meta?.buildingType) continue;
+          const dist = Vector3.Distance(playerPos, mesh.position);
+          if (dist < nearestDist) {
+            nearestDist = dist;
+            nearestBuilding = mesh as Mesh;
+          }
         }
       }
     }
@@ -10831,7 +11189,7 @@ Requirements:
     } else {
       this.guiManager?.showToast({
         title: 'No building nearby',
-        description: 'Walk closer to a building and press E to enter.',
+        description: 'Walk closer to a building and press Enter to enter.',
         duration: 2000,
       });
     }
@@ -10849,17 +11207,61 @@ Requirements:
     doorWorldPos?: Vector3
   ): Promise<void> {
     if (!this.playerMesh || !this.scene || this.isInsideBuilding) return;
+    const bldgMeta = this.buildingData.get(buildingId)?.metadata;
+    const bldgLabel = bldgMeta?.businessName || bldgMeta?.buildingName || buildingId;
+    try {
 
     // Lazy-init interior scene manager
     if (!this.interiorSceneManager && this.engine && this.scene) {
       this.interiorSceneManager = new InteriorSceneManager(this.engine, this.scene);
       if (this.interiorGenerator) {
-        const interiorScene = this.interiorSceneManager.getInteriorScene();
-        this.interiorGenerator.setTargetScene(interiorScene, true);
-        this.interiorItemManager = new InteriorItemManager(interiorScene, this.objectModelTemplates, this.objectModelOriginalHeights, this.objectModelScaleHints);
-        this.bookSpawnManager = new BookSpawnManager(interiorScene);
+        // Use overworld scene — interiors at Y=500+
+        this.interiorItemManager = new InteriorItemManager(this.scene, this.objectModelTemplates, this.objectModelOriginalHeights, this.objectModelScaleHints);
+        this.bookSpawnManager = new BookSpawnManager(this.scene);
         this.fetchWorldTextsForBooks();
       }
+    }
+
+    // Lazy-init interior NPC manager
+    if (!this.interiorNPCManager) {
+      this.interiorNPCManager = new InteriorNPCManager({
+        onAnimationChange: (npcId: string, state: string) => {
+          const instance = this.npcMeshes.get(npcId);
+          if (instance?.controller) {
+            instance.controller.walk(state === 'walk');
+            instance.controller.run(state === 'run');
+          }
+        },
+        onFaceDirection: (npcId: string, targetPos: Vector3) => {
+          const instance = this.npcMeshes.get(npcId);
+          if (instance?.mesh) {
+            const dir = targetPos.subtract(instance.mesh.position);
+            instance.mesh.rotation.y = Math.atan2(dir.x, dir.z) + Math.PI;
+          }
+        },
+        onNPCGreeting: (npcId: string, greeting: string) => {
+          const instance = this.npcMeshes.get(npcId);
+          const name = instance?.characterData?.firstName || 'NPC';
+          this.guiManager?.showToast({ title: name, description: greeting, duration: 3000 });
+        },
+        getGameHour: () => this.gameTimeManager?.hour ?? 12,
+      });
+      this.interiorNPCManager.setScheduleSource({
+        getScheduledBuildingId: (npcId: string) => {
+          const instance = this.npcMeshes.get(npcId);
+          if (instance?.isInsideBuilding && instance.insideBuildingId) {
+            return instance.insideBuildingId;
+          }
+          return null;
+        },
+        getScheduledNPCIds: () => {
+          const ids: string[] = [];
+          this.npcMeshes.forEach((instance, id) => {
+            if (instance.isInsideBuilding && instance.insideBuildingId) ids.push(id);
+          });
+          return ids;
+        },
+      });
     }
 
     if (!this.interiorSceneManager) {
@@ -10876,132 +11278,25 @@ Requirements:
 
     this.activeBuildingId = buildingId;
 
+    // Disable overworld meshes BEFORE generating the interior so that
+    // only pre-existing overworld meshes are affected. Interior furniture,
+    // items, and books created after this point will be enabled by default.
+    if (this.scene) {
+      for (const mesh of this.scene.meshes) {
+        mesh.setEnabled(false);
+      }
+    }
+    // Stop NPC + player CharacterControllers to avoid per-frame physics work
+    this.npcMeshes.forEach((instance) => {
+      instance.controller?.stop();
+    });
+    this.playerController?.stop();
+
     // Fade to black
     await this.performFadeTransition(true);
 
-    // Switch to the interior scene
-    this.playerMesh.setEnabled(false);
-    const interiorScene = this.interiorSceneManager.getInteriorScene();
-
-    // Create 3rd-person camera + player mesh for interior — same controls as overworld
+    // Generate the interior (in the overworld scene at Y=500+)
     let spawnPos = new Vector3(0, 0, 0);
-
-    // Load the actual player model into the interior scene — identical setup to overworld loadPlayer()
-    let interiorAvatar: Mesh;
-    let interiorImportResult: { animationGroups: any[]; skeletons: any[] } = { animationGroups: [], skeletons: [] };
-    try {
-      const result = await SceneLoader.ImportMeshAsync(
-        "", this.playerModelRootUrl, this.playerModelFileName, interiorScene
-      );
-      const raw = this.selectPlayerMesh(result.meshes) || (result.meshes[0] as Mesh);
-      const skeleton = result.skeletons[0];
-      interiorAvatar = this.preparePlayerMesh(raw, skeleton);
-      interiorImportResult = result;
-
-      const playerScale = this.world3DConfig?.modelScaling?.['playerModels.default'];
-      interiorAvatar.scaling = playerScale
-        ? new Vector3(playerScale.x, playerScale.y, playerScale.z)
-        : new Vector3(1, 1, 1);
-      interiorAvatar.checkCollisions = true;
-      interiorAvatar.ellipsoid = new Vector3(0.5, 1, 0.5);
-      interiorAvatar.ellipsoidOffset = new Vector3(0, 1, 0);
-      interiorAvatar.setEnabled(true);
-      interiorAvatar.visibility = 1;
-      interiorAvatar.getChildMeshes().forEach(child => {
-        child.setEnabled(true);
-        child.visibility = 1;
-      });
-    } catch (err) {
-      console.warn('[Interior] Failed to load player model, using capsule fallback:', err);
-      interiorAvatar = MeshBuilder.CreateCapsule('interior_player', { height: 2, radius: 0.4 }, interiorScene);
-      const avatarMat = new StandardMaterial('interior_player_mat', interiorScene);
-      avatarMat.diffuseColor = new Color3(0.4, 0.5, 0.7);
-      avatarMat.emissiveColor = new Color3(0.1, 0.15, 0.2);
-      interiorAvatar.material = avatarMat;
-      interiorAvatar.checkCollisions = true;
-      interiorAvatar.ellipsoid = new Vector3(0.5, 1, 0.5);
-      interiorAvatar.ellipsoidOffset = new Vector3(0, 1, 0);
-    }
-    interiorAvatar.position = new Vector3(spawnPos.x, spawnPos.y + 1, spawnPos.z);
-    this.interiorPlayerMesh = interiorAvatar;
-
-    // Camera + CharacterController — identical to overworld setup in loadPlayer()
-    // Set camera behind the player based on their overworld facing direction
-    const interiorAlpha = this.playerMesh
-      ? this.playerMesh.rotation.y - Math.PI  // behind the player
-      : -Math.PI / 2;                          // fallback
-    const intCam = new ArcRotateCamera(
-      'interior_camera',
-      interiorAlpha,
-      Math.PI / 3,
-      6,              // Closer than overworld (10) for tight interior spaces
-      interiorAvatar.position.add(new Vector3(0, 1.6, 0)),
-      interiorScene
-    );
-    intCam.attachControl(this.engine!.getRenderingCanvas(), true);
-    intCam.minZ = 0.1;
-    intCam.lowerRadiusLimit = 2;    // Allow zooming in close to avoid walls
-    intCam.upperRadiusLimit = 8;    // Cap zoom-out to stay within rooms
-    intCam.upperBetaLimit = Math.PI / 2.2; // Prevent camera going below floor
-    intCam.wheelDeltaPercentage = 0.01;
-    this.interiorCamera = intCam;
-    interiorScene.activeCamera = intCam;
-
-    const intController = new CharacterController(interiorAvatar, intCam, interiorScene, undefined, true);
-    intController.setCameraTarget(new Vector3(0, 1.6, 0));
-    intController.setNoFirstPerson(true);
-    intController.setStepOffset(0.75);
-    intController.setSlopeLimit(15, 75);
-    intController.setWalkSpeed(2.5);
-    intController.setRunSpeed(5);
-    intController.setLeftSpeed(2);
-    intController.setRightSpeed(2);
-    intController.setJumpSpeed(6);
-    intController.setTurnSpeed(60);
-    // Interior-specific: make walls between camera and player transparent,
-    // and pull the camera closer to avoid clipping through geometry
-    intController.setCameraElasticity(true);
-    intController.makeObstructionInvisible(true);
-
-    // Wire animations — identical to overworld
-    if (interiorImportResult.animationGroups && interiorImportResult.animationGroups.length > 0) {
-      const agByName: Record<string, any> = {};
-      for (const ag of interiorImportResult.animationGroups) {
-        agByName[ag.name] = ag;
-        ag.stop();
-      }
-      const agMap: Record<string, any> = {};
-      if (agByName['idle']) agMap['idle'] = agByName['idle'];
-      if (agByName['walk']) agMap['walk'] = agByName['walk'];
-      if (agByName['run']) agMap['run'] = agByName['run'];
-      if (agByName['turnLeft']) agMap['turnLeft'] = agByName['turnLeft'];
-      if (agByName['turnRight']) agMap['turnRight'] = agByName['turnRight'];
-      if (agByName['walkBack']) agMap['walkBack'] = agByName['walkBack'];
-      if (agByName['idleJump']) agMap['idleJump'] = agByName['idleJump'];
-      if (agByName['runJump']) agMap['runJump'] = agByName['runJump'];
-      if (agByName['fall']) agMap['fall'] = agByName['fall'];
-      if (agByName['slideBack']) agMap['slideBack'] = agByName['slideBack'];
-      if (agByName['strafeLeft']) agMap['strafeLeft'] = agByName['strafeLeft'];
-      if (agByName['strafeRight']) agMap['strafeRight'] = agByName['strafeRight'];
-      intController.setAnimationGroups(agMap);
-    } else {
-      intController.setIdleAnim("idle", 1, true);
-      intController.setWalkAnim("walk", 1, true);
-      intController.setRunAnim("run", 1.2, true);
-      intController.setTurnLeftAnim("turnLeft", 0.5, true);
-      intController.setTurnRightAnim("turnRight", 0.5, true);
-      intController.setWalkBackAnim("walkBack", 0.5, true);
-      intController.setIdleJumpAnim("idleJump", 0.5, false);
-      intController.setRunJumpAnim("runJump", 0.6, false);
-      intController.setFallAnim("fall", 2, false);
-      intController.setSlideBackAnim("slideBack", 1, false);
-    }
-
-    intController.start();
-    this.interiorPlayerController = intController;
-
-    // Now safe to switch — interior scene has an active camera
-    this.interiorSceneManager.switchToInterior();
 
     // Determine interior type: check asset collection config first, then building data
     const buildingInfo = this.buildingData.get(buildingId);
@@ -11009,9 +11304,8 @@ Requirements:
 
     if (interiorAssetPath) {
       try {
-        const { spawnPosition, meshCount } = await this.interiorSceneManager.loadInteriorModel(interiorAssetPath);
+        const { spawnPosition } = await this.interiorSceneManager.loadInteriorModel(interiorAssetPath);
         spawnPos = spawnPosition;
-        // Create a minimal InteriorLayout for NPC placement in asset-based interiors
         this.activeInterior = {
           rooms: [{ id: 'main', type: businessType || 'room', x: spawnPos.x - 4, z: spawnPos.z - 4, width: 8, depth: 8 }],
           furniture: [],
@@ -11027,22 +11321,43 @@ Requirements:
       spawnPos = await this.generateProceduralInterior(buildingId, buildingType, businessType, doorWorldPos);
     }
 
-    // Position the interior player avatar at the spawn point (feet on floor)
-    interiorAvatar.position = new Vector3(spawnPos.x, spawnPos.y + 1, spawnPos.z);
-    intCam.target = interiorAvatar.position.add(new Vector3(0, 1.6, 0));
-    intController.resetPhysicsState();
+    // Teleport the existing player to the interior spawn point
+    this.playerMesh.position = new Vector3(spawnPos.x, spawnPos.y + 1, spawnPos.z);
+    this.playerMesh.rotation.y = 0; // Face +Z (into the room)
+    // Re-enable player mesh (was disabled with all overworld meshes)
+    this.playerMesh.setEnabled(true);
+    this.playerMesh.getChildMeshes().forEach(child => child.setEnabled(true));
+    this.playerController?.start();
+    this.playerController?.resetPhysicsState();
+
+    // Re-target camera at interior spawn
+    if (this.camera) {
+      this.camera.target = this.playerMesh.position.add(new Vector3(0, 1.6, 0));
+    }
 
     this.playerController?.resetPhysicsState();
     this.isInsideBuilding = true;
+
+    // Hide all health bars inside interiors (no combat)
+    this.playerHealthBar?.hide();
+    this.npcHealthBars.forEach(hb => hb.hide());
     this.currentBuildingBusinessType = businessType;
 
     // Populate interior with NPCs — load the same models into the interior scene
     this.interiorNPCClones = [];
     if (this.interiorNPCManager && this.activeInterior) {
+      // Use full building metadata (ownerId, employees, occupants, etc.) so
+      // InteriorNPCManager can find the right NPCs for this building.
+      const buildingMeta = this.buildingData.get(buildingId)?.metadata;
       const metadata = {
         buildingType,
         businessType,
+        ...buildingMeta,
       };
+
+      // Include NPCs that the schedule system has placed inside this building
+      (metadata as any).scheduledNpcIds = this.getNPCsInBuilding(buildingId);
+
       this.interiorNPCManager.populateInterior(
         buildingId,
         this.activeInterior,
@@ -11050,20 +11365,26 @@ Requirements:
         this.npcMeshes as any,
       );
 
-      // Load each placed NPC's model into the interior scene (same as overworld)
-      const loadPromises = this.interiorNPCManager.getPlacedNPCs().map(async (placed) => {
+      const placedNPCs = this.interiorNPCManager.getPlacedNPCs();
+
+      // Load each placed NPC's model into the overworld scene at interior positions
+      const loadPromises = placedNPCs.map(async (placed) => {
         try {
           const npcInstance = this.npcMeshes.get(placed.npcId);
           const character = npcInstance?.characterData || placed.characterData;
           if (!character) return;
           const npcMesh = await this.loadNPCForInterior(
             character,
-            interiorScene,
+            this.scene!,
             placed.interiorPosition,
             placed.mesh.rotation,
+            placed.animationState,
           );
           if (npcMesh) {
             this.interiorNPCClones.push(npcMesh);
+            const cd = npcInstance?.characterData;
+            const name = cd ? `${cd.firstName || ''} ${cd.lastName || ''}`.trim() : placed.npcId;
+            this.interactionPrompt?.registerNPC({ id: placed.npcId, name, mesh: npcMesh });
           }
         } catch (err) {
           console.warn(`[Interior] Failed to load NPC ${placed.npcId}:`, err);
@@ -11082,7 +11403,9 @@ Requirements:
 
     // Spawn item props (only for procedural interiors)
     if (this.activeInterior) {
-      this.interiorItemManager?.spawnItems(buildingId, this.activeInterior, this.worldItems);
+      console.log(`[Interior Debug] buildingId=${buildingId}, businessType=${this.activeInterior.businessType}, buildingType=${this.activeInterior.buildingType}, worldItems=${this.worldItems?.length ?? 0}, furniture=${this.activeInterior.furniture?.length ?? 0}`);
+      const spawnedItemMeshes = this.interiorItemManager?.spawnItems(buildingId, this.activeInterior, this.worldItems);
+      console.log(`[Interior Debug] spawnItems returned ${spawnedItemMeshes?.length ?? 0} meshes`);
 
       // Spawn physical book meshes from server texts
       if (this.bookSpawnManager && this.worldTextCache.length > 0) {
@@ -11170,12 +11493,15 @@ Requirements:
     // Register container meshes for interaction
     if (this.activeInterior && this.containerSpawnSystem && this.interactionPrompt) {
       this.interactionPrompt.clearContainers();
+      const containerFurniture = this.activeInterior.furniture.filter((m: any) => m.metadata?.isContainer);
+      console.log(`[Interior Debug] Container candidates: ${containerFurniture.length} of ${this.activeInterior.furniture.length} furniture have isContainer`);
       const containers = this.containerSpawnSystem.spawnInteriorContainers(
         this.activeInterior.furniture,
         buildingId,
         businessType,
         buildingType,
       );
+      console.log(`[Interior Debug] spawnInteriorContainers returned ${containers.length} containers`);
       for (const container of containers) {
         if (container.mesh) {
           this.interactionPrompt.registerContainer(
@@ -11206,6 +11532,9 @@ Requirements:
     });
 
     await this.performFadeTransition(false);
+    } catch (err) {
+      console.error(`[Interior] enterBuilding failed for ${bldgLabel}:`, err);
+    }
   }
 
   /**
@@ -11217,9 +11546,11 @@ Requirements:
     interiorScene: Scene,
     position: Vector3,
     rotation: Vector3,
+    desiredAnimation?: string,
   ): Promise<Mesh | null> {
     const role = this.getRoleForCharacter(character);
     let root: Mesh | null = null;
+    let importedAnimGroups: any[] = [];
 
     // Helper to split an asset path into rootUrl + file for SceneLoader
     const splitPath = (path: string): [string, string] => {
@@ -11270,6 +11601,7 @@ Requirements:
           }
 
           root = bodyMesh;
+          importedAnimGroups = bodyResult.animationGroups || [];
         }
       } catch { /* Quaternius failed — fall through */ }
     }
@@ -11281,6 +11613,7 @@ Requirements:
         if (modelInfo) {
           const result = await SceneLoader.ImportMeshAsync('', modelInfo.rootUrl, modelInfo.file, interiorScene);
           root = (result.meshes.find(m => m.name === '__root__') || result.meshes[0]) as Mesh;
+          importedAnimGroups = result.animationGroups || [];
         }
       } catch { /* world override failed */ }
     }
@@ -11291,6 +11624,7 @@ Requirements:
         const diverseModel = resolveNPCModelFromCharacter(character, role, this.config.worldType);
         const result = await SceneLoader.ImportMeshAsync('', diverseModel.rootUrl, diverseModel.file, interiorScene);
         root = (result.meshes.find(m => m.name === '__root__') || result.meshes[0]) as Mesh;
+        importedAnimGroups = result.animationGroups || [];
       } catch { /* diverse model failed */ }
     }
 
@@ -11299,6 +11633,7 @@ Requirements:
       try {
         const result = await SceneLoader.ImportMeshAsync('', '', NPC_MODEL_URL, interiorScene);
         root = (result.meshes.find(m => m.name === '__root__') || result.meshes[0]) as Mesh;
+        importedAnimGroups = result.animationGroups || [];
       } catch { /* default failed */ }
     }
 
@@ -11307,12 +11642,30 @@ Requirements:
     root.name = `interior_npc_${character.id}`;
     root.position = position.clone();
     root.rotation = rotation.clone();
+    root.rotationQuaternion = null;
     root.setEnabled(true);
     root.visibility = 1;
     root.getChildMeshes().forEach(child => {
       child.setEnabled(true);
       child.visibility = 1;
+      child.rotationQuaternion = null;
     });
+
+    // Stop all imported animation groups, then play the desired animation
+    for (const ag of importedAnimGroups) ag.stop();
+
+    const nameLower = (ag: any) => (ag.name || '').toLowerCase();
+    // Try desired animation first (e.g., 'sit', 'work'), then fall back to idle
+    const desired = desiredAnimation?.toLowerCase();
+    const idleAg = (desired && importedAnimGroups.find(ag => nameLower(ag) === desired))
+      || (desired && importedAnimGroups.find(ag => nameLower(ag).includes(desired)))
+      || importedAnimGroups.find(ag => nameLower(ag) === 'idle')
+      || importedAnimGroups.find(ag => nameLower(ag).includes('idle'))
+      || importedAnimGroups[0]; // fallback: play any animation rather than bind pose
+
+    if (idleAg) {
+      idleAg.start(true, 1.0, idleAg.from, idleAg.to, false);
+    }
 
     return root;
   }
@@ -11367,10 +11720,29 @@ Requirements:
       }
     }
 
-    // Spawn a few paces inside the room (door is at -Z wall, room center is at position)
+    // Spawn near the door, avoiding furniture.
     const spawnPos = interior.doorPosition.clone();
-    spawnPos.y = interior.position.y; // Floor level
-    spawnPos.z += 4; // Step into the room (away from door, toward +Z)
+    spawnPos.y = interior.position.y;
+    spawnPos.z += 2;
+
+    // Nudge away from any furniture at the spawn point
+    for (const fMesh of interior.furniture) {
+      if (!fMesh.getBoundingInfo) continue;
+      fMesh.computeWorldMatrix(true);
+      const bb = fMesh.getBoundingInfo().boundingBox;
+      if (spawnPos.x >= bb.minimumWorld.x - 1 && spawnPos.x <= bb.maximumWorld.x + 1 &&
+          spawnPos.z >= bb.minimumWorld.z - 1 && spawnPos.z <= bb.maximumWorld.z + 1) {
+        spawnPos.z = bb.minimumWorld.z - 1.5;
+        break;
+      }
+    }
+
+    // Clamp to interior bounds
+    const halfW = interior.width / 2 - 1;
+    const halfD = interior.depth / 2 - 1;
+    spawnPos.x = Math.max(interior.position.x - halfW, Math.min(interior.position.x + halfW, spawnPos.x));
+    spawnPos.z = Math.max(interior.position.z - halfD, Math.min(interior.position.z + halfD, spawnPos.z));
+
     return spawnPos;
   }
 
@@ -11410,8 +11782,11 @@ Requirements:
    * Phase 4B: Exit the current building interior. Restores the player to
    * their saved overworld position with a fade transition.
    */
+  private _exitingBuilding = false;
   private async exitBuilding(): Promise<void> {
     if (!this.playerMesh || !this.isInsideBuilding || !this.activeInterior) return;
+    if (this._exitingBuilding) return; // Prevent double-exit from rapid clicks
+    this._exitingBuilding = true;
 
     // Capture state before async operations
     const interior = this.activeInterior;
@@ -11420,7 +11795,12 @@ Requirements:
     // Fade to black
     await this.performFadeTransition(true);
 
-    // Dispose interior NPC clones and restore overworld NPC positions
+    // Unregister interior NPC clones from interaction prompt, then dispose
+    if (this.interiorNPCManager) {
+      for (const placed of this.interiorNPCManager.getPlacedNPCs()) {
+        this.interactionPrompt?.unregisterNPC(placed.npcId);
+      }
+    }
     for (const clone of this.interiorNPCClones) {
       clone.dispose(false, true);
     }
@@ -11448,26 +11828,8 @@ Requirements:
       if (buildingId) {
         this.interiorGenerator?.disposeInterior(buildingId);
       }
-      this.interiorSceneManager.clearInteriorMeshes();
-
-      // Switch back to overworld rendering
-      this.interiorSceneManager.switchToOverworld();
-
-      // Re-enable player mesh in overworld
-      this.playerMesh.setEnabled(true);
-
-      // Re-attach overworld camera
-      if (this.camera) {
-        this.camera.attachControl(this.engine!.getRenderingCanvas(), true);
-      }
     }
 
-    // Restore camera to overworld settings
-    if (this.camera) {
-      this.camera.lowerRadiusLimit = 10;
-      this.camera.upperRadiusLimit = 10;
-      this.camera.radius = 10;
-    }
 
     // Teleport player back to overworld
     if (this.savedOverworldPosition) {
@@ -11486,6 +11848,24 @@ Requirements:
     this.bookSpawnManager?.clearBooks();
     this.interiorDoorTrigger?.dispose();
     this.interiorDoorTrigger = null;
+
+    // Re-enable all overworld meshes
+    if (this.scene) {
+      for (const mesh of this.scene.meshes) {
+        mesh.setEnabled(true);
+      }
+      // Re-hide health bar containers (they start hidden and only show on damage)
+      for (const mesh of this.scene.meshes) {
+        if (mesh.name.startsWith('healthbar_container_')) {
+          mesh.setEnabled(false);
+        }
+      }
+    }
+    // Restart NPC + player CharacterControllers
+    this.npcMeshes.forEach((instance) => {
+      instance.controller?.start();
+    });
+    this.playerController?.start();
 
     this.isInsideBuilding = false;
     this.activeInterior = null;
@@ -11514,6 +11894,7 @@ Requirements:
 
     // Fade back in
     await this.performFadeTransition(false);
+    this._exitingBuilding = false;
   }
 
   /**
@@ -11658,10 +12039,19 @@ Requirements:
       if (!pickInfo?.hit || !pickInfo.pickedMesh) return;
       // Walk up parent chain to find root mesh with meaningful metadata
       let pickedMesh = pickInfo.pickedMesh;
-      while (pickedMesh.parent && !pickedMesh.metadata?.buildingId && !pickedMesh.metadata?.npcId && !pickedMesh.metadata?.objectRole && !pickedMesh.metadata?.interiorExit) {
+      while (pickedMesh.parent && !pickedMesh.metadata?.buildingId && !pickedMesh.metadata?.npcId && !pickedMesh.metadata?.objectRole && !pickedMesh.metadata?.interiorExit && !pickedMesh.metadata?.isContainer) {
         pickedMesh = pickedMesh.parent as Mesh;
       }
       const metadata = pickedMesh.metadata || {};
+
+      // Container interaction (chests, barrels, crates)
+      if (metadata.isContainer && metadata.containerId && this.containerSpawnSystem) {
+        const containerData = this.containerSpawnSystem.getContainer(metadata.containerId);
+        if (containerData) {
+          this.openContainerPanel(containerData);
+          return;
+        }
+      }
 
       // World prop interaction (chests, data pads, lanterns, etc.)
       const objectRole = metadata.objectRole as string | undefined;
@@ -11669,8 +12059,6 @@ Requirements:
         this.handleWorldPropClicked(pickedMesh as Mesh, objectRole);
         return;
       }
-
-      // Settlement click — no-op (details panel removed)
 
       // Phase 4B: Interior exit door — click to leave building
       if (metadata.interiorExit && metadata.buildingId) {
@@ -11704,7 +12092,156 @@ Requirements:
         if (!this.conversationNPCId) {
           this.handleOpenChat();
         }
+        return;
       }
+
+      // Fallback: screen-space door click (ray picking misses thin door geometry)
+      if (!this.isInsideBuilding && this.playerMesh && this.scene?.activeCamera) {
+        const canvas = this.engine?.getRenderingCanvas();
+        if (canvas) {
+          const evt = pointerInfo.event as PointerEvent;
+          const rect = canvas.getBoundingClientRect();
+          const mouseX = evt.clientX - rect.left;
+          const mouseY = evt.clientY - rect.top;
+          const vp = this.scene.activeCamera.viewport.toGlobal(canvas.width, canvas.height);
+          const transform = this.scene.getTransformMatrix();
+          const pxToCssX = rect.width / canvas.width;
+          const pxToCssY = rect.height / canvas.height;
+          const playerPos = this.playerMesh.position;
+
+          let clickedBuildingId: string | null = null;
+          let clickedBuildingType: string | null = null;
+          let clickedBusinessType: string | undefined;
+          let clickedBuildingPos: Vector3 | null = null;
+
+          this.buildingData.forEach((data) => {
+            if (clickedBuildingId) return;
+            if (!data.metadata?.buildingId) return;
+            if (Vector3.Distance(playerPos, data.position) > 8) return;
+            const depth = data.depth || 6;
+            let frontZ = depth / 2;
+            if (data.hasPorch) {
+              const porchExtension = (data.porchDepth ?? 3) + (data.porchSteps ?? 3) * 0.4;
+              frontZ -= porchExtension * 0.75;
+            }
+            const porchElev = data.hasPorch ? ((data.porchSteps ?? 3) * 0.3) : 0;
+            const doorLocal = new Vector3(0, porchElev + 1.1, frontZ);
+            const screen = Vector3.Project(doorLocal, data.mesh.getWorldMatrix(), transform, vp);
+            if (screen.z < 0 || screen.z > 1) return;
+            const dx = (mouseX - screen.x * pxToCssX) / 30;
+            const dy = (mouseY - screen.y * pxToCssY) / 55;
+            if (dx * dx + dy * dy < 1) {
+              clickedBuildingId = data.metadata.buildingId;
+              clickedBuildingType = data.metadata.buildingType;
+              clickedBusinessType = data.metadata.businessType;
+              clickedBuildingPos = data.position.clone();
+            }
+          });
+
+          if (clickedBuildingId && clickedBuildingType) {
+            this.enterBuilding(clickedBuildingId, clickedBuildingType, clickedBusinessType, clickedBuildingPos!);
+          }
+        }
+      }
+    });
+
+    // ── Hover cursor for interactable meshes (doors, NPCs) ────────────────
+    // Uses screen-space projection instead of ray picking for reliable detection.
+    // Vector3.Project takes a LOCAL offset and a world matrix — using local (0,y,0)
+    // avoids double-transforming world-space positions.
+    const canvas = this.engine?.getRenderingCanvas();
+    const HOVER_NPC_X = 35;    // CSS pixels horizontal
+    const HOVER_NPC_Y = 65;    // CSS pixels vertical (NPCs are tall)
+    const HOVER_DOOR_X = 30;   // CSS pixels horizontal
+    const HOVER_DOOR_Y = 70;   // CSS pixels vertical (doors are tall)
+    const MAX_WORLD_DIST = 15;      // don't show pointer for distant objects
+    const npcLocalCenter = new Vector3(0, 1.0, 0);  // body center in NPC local space
+
+    this.hoverObserver = this.scene.onPointerObservable.add((pointerInfo) => {
+      if (pointerInfo.type !== PointerEventTypes.POINTERMOVE) return;
+      const evt = pointerInfo.event as PointerEvent;
+      if (!canvas || !this.scene?.activeCamera) return;
+
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = evt.clientX - rect.left;
+      const mouseY = evt.clientY - rect.top;
+      const playerPos = this.playerMesh?.position;
+      const vp = this.scene.activeCamera.viewport.toGlobal(canvas.width, canvas.height);
+      const transform = this.scene.getTransformMatrix();
+      // Scale factor from canvas pixels to CSS pixels
+      const pxToCssX = rect.width / canvas.width;
+      const pxToCssY = rect.height / canvas.height;
+
+      let hit = false;
+
+      // Check NPCs — project local body center through NPC world matrix
+      this.npcMeshes.forEach((instance) => {
+        if (hit) return;
+        if (!instance.mesh.isEnabled() || instance.isInsideBuilding) return;
+        if (playerPos && Vector3.Distance(playerPos, instance.mesh.position) > MAX_WORLD_DIST) return;
+        const screen = Vector3.Project(npcLocalCenter, instance.mesh.getWorldMatrix(), transform, vp);
+        if (screen.z < 0 || screen.z > 1) return;
+        const dx = (mouseX - screen.x * pxToCssX) / HOVER_NPC_X;
+        const dy = (mouseY - screen.y * pxToCssY) / HOVER_NPC_Y;
+        if (dx * dx + dy * dy < 1) {
+          hit = true;
+        }
+      });
+
+      // Check building doors — project door position in building local space.
+      // The door is at the front face (z = +depth/2), shifted back if porched.
+      if (!hit && !this.isInsideBuilding) {
+        this.buildingData.forEach((data) => {
+          if (hit) return;
+          if (!data.metadata?.buildingId) return;
+          if (playerPos && Vector3.Distance(playerPos, data.position) > 8) return;
+          const depth = data.depth || 6;
+          let frontZ = depth / 2;
+          // If building has a porch, the geometry is shifted back in local -Z
+          if (data.hasPorch) {
+            const porchExtension = (data.porchDepth ?? 3) + (data.porchSteps ?? 3) * 0.4;
+            frontZ -= porchExtension * 0.75;
+          }
+          // Door center: porchElevation + doorHeight/2 in parent local space
+          const porchElev = data.hasPorch ? ((data.porchSteps ?? 3) * 0.3) : 0;
+          const doorLocal = new Vector3(0, porchElev + 1.1, frontZ);
+          const screen = Vector3.Project(doorLocal, data.mesh.getWorldMatrix(), transform, vp);
+          if (screen.z < 0 || screen.z > 1) return;
+          const dx = (mouseX - screen.x * pxToCssX) / HOVER_DOOR_X;
+          const dy = (mouseY - screen.y * pxToCssY) / HOVER_DOOR_Y;
+          if (dx * dx + dy * dy < 1) {
+            hit = true;
+          }
+        });
+      }
+
+      // Check containers (chests, barrels, crates)
+      if (!hit) {
+        const containers = this.containerSpawnSystem?.getAllContainers();
+        if (containers) {
+          const containerCenter = new Vector3(0, 0.5, 0);
+          for (const container of containers) {
+            if (hit) break;
+            if (!container.mesh || !container.mesh.isEnabled()) continue;
+            if (playerPos && Vector3.Distance(playerPos, container.mesh.position) > MAX_WORLD_DIST) continue;
+            const screen = Vector3.Project(containerCenter, container.mesh.getWorldMatrix(), transform, vp);
+            if (screen.z < 0 || screen.z > 1) continue;
+            const dx = (mouseX - screen.x * pxToCssX) / 30;
+            const dy = (mouseY - screen.y * pxToCssY) / 40;
+            if (dx * dx + dy * dy < 1) {
+              hit = true;
+            }
+          }
+        }
+      }
+
+      // In first-person with pointer lock active, hide cursor (crosshair replaces it).
+      // When pointer lock is released (GUI open), show normal/pointer cursor.
+      const isFirstPerson = this.cameraManager?.getCurrentMode() === 'first_person';
+      const pointerLocked = !!document.pointerLockElement;
+      // In first-person, always hide system cursor — the crosshair replaces it
+      // (in free mode it tracks the mouse, in locked mode it's centered)
+      canvas.style.cursor = isFirstPerson ? 'none' : (hit ? 'pointer' : '');
     });
   }
 
@@ -12685,10 +13222,16 @@ Requirements:
           break;
         }
         case 'enter_building': {
-          instance.isInsideBuilding = true;
-          instance.insideBuildingId = action.buildingId;
+          this.npcEnterBuilding(npcId, action.buildingId);
           instance.scheduleGoalExpiry = now + action.stayDurationMs;
           instance.controller?.walk(false);
+          {
+            const cd = instance.characterData;
+            const npcName = cd ? `${cd.firstName || ''} ${cd.lastName || ''}`.trim() : npcId;
+            const bldg = this.buildingData.get(action.buildingId)?.metadata;
+            const bldgName = bldg?.businessName || bldg?.buildingName || action.buildingId;
+            console.log(`[Schedule] ${npcName} entering ${bldgName} (occasion=${action.occasion})`);
+          }
 
           // If NPC is going to sleep and we can find a bed, position them visibly
           if (action.occasion === 'sleeping') {
@@ -12713,8 +13256,7 @@ Requirements:
             this.residenceActivitySystem.endOccasion(npcId);
           }
 
-          instance.isInsideBuilding = false;
-          instance.insideBuildingId = undefined;
+          this.npcExitBuilding(npcId);
           instance.scheduleGoalExpiry = undefined;
           instance.schedulePathWaypoints = undefined;
           instance.schedulePathIndex = undefined;
@@ -13346,7 +13888,14 @@ Requirements:
         return;
       }
 
-      // [7] No active path — evaluate for new goal
+      // [7] No active path — stop walking and evaluate for new goal
+      if (instance.isWalking) {
+        instance.controller.walk(false);
+        instance.controller.turnLeft(false);
+        instance.controller.turnRight(false);
+        instance.isWalking = false;
+        this.playNPCAnimation(instance, 'idle');
+      }
       if (!this.scheduleExecutor.hasPendingAction(characterId)) {
         this.scheduleExecutor.forceEvaluateNPC(characterId);
         if (!this.scheduleExecutor.hasPendingAction(characterId)) {
@@ -13584,9 +14133,13 @@ Requirements:
     // Building collision: if the NPC has entered a building footprint, stop and pick a new target
     if (this.isPointInsideAnyBuilding(currentPos.x, currentPos.z)) {
       instance.controller.walk(false);
+      instance.controller.turnLeft(false);
+      instance.controller.turnRight(false);
       instance.isWalking = false;
       this.playNPCAnimation(instance, 'idle');
       instance.wanderTarget = undefined;
+      instance.schedulePathWaypoints = undefined;
+      instance.schedulePathIndex = undefined;
       return;
     }
 
@@ -14113,6 +14666,9 @@ Requirements:
       namedLocations.set('any_crafting_station', namedLocations.get("Sonnier's La Guilde des Artisans")!);
     }
 
+    // Cache named locations for the waypoint director (runs in a different update cycle)
+    this._namedLocations = namedLocations as any;
+
     // 3D quest markers for objectives are now handled by QuestIndicatorManager
     // (for NPCs) and QuestWaypointManager (for DynamicQuestWaypointDirector resolved positions only).
     // Named-location waypoints have been removed to avoid duplicate markers.
@@ -14211,6 +14767,10 @@ Requirements:
       const activeScene = this.interiorSceneManager?.getActiveScene() ?? this.scene;
       activeScene.render();
 
+      // Update background music based on player location and conversation state
+      this.updateMusic();
+
+
       // Update perf overlay every 500ms
       this._perfTimer += this.engine!.getDeltaTime();
       if (this._perfTimer >= 500 && this._perfDiv) {
@@ -14257,6 +14817,7 @@ Requirements:
       if (this.gameMenuSystem) {
         this.gameMenuSystem.toggle();
         if (this.gameMenuSystem.isOpen) {
+          this.cameraManager?.releasePointerLock();
           this.eventBus.emit({ type: 'quest_log_opened' });
         }
       }
@@ -14297,19 +14858,11 @@ Requirements:
           title: "Conversation Ended",
           duration: 1500
         });
+      } else if (this.isInsideBuilding) {
+        // Inside a building: interact with nearest interior NPC, or exit
+        await this.handleInteriorInteraction();
       } else {
         // Dispatch based on unified interaction prompt target
-        await this.handleUnifiedInteraction();
-      }
-    }
-
-    // Q - Contextual action menu (for any target the player is looking at)
-    if (event.code === KEY_PHYSICAL_ACTION && !event.repeat) {
-      if (this.contextualActionMenu?.isOpen()) {
-        event.preventDefault();
-        this.contextualActionMenu.hide();
-      } else {
-        event.preventDefault();
         await this.handleUnifiedInteraction();
       }
     }
@@ -14380,6 +14933,54 @@ Requirements:
     }
   }
   
+  /**
+   * Handle Enter key inside a building interior.
+   * Finds the nearest interior NPC clone and starts conversation,
+   * or exits the building if no NPC is nearby.
+   */
+  private async handleInteriorInteraction(): Promise<void> {
+    const playerMesh = this.interiorPlayerMesh || this.playerMesh;
+    if (!playerMesh) return;
+
+    const playerPos = playerMesh.position;
+    const maxDist = 6;
+    let nearestNpcId: string | null = null;
+    let nearestDist = maxDist;
+
+    // Check placed interior NPCs for proximity
+    if (this.interiorNPCManager) {
+      for (const placed of this.interiorNPCManager.getPlacedNPCs()) {
+        const dist = Vector3.Distance(playerPos, placed.interiorPosition);
+        if (dist < nearestDist) {
+          nearestDist = dist;
+          nearestNpcId = placed.npcId;
+        }
+      }
+    }
+
+    if (nearestNpcId) {
+      this.setSelectedNPC(nearestNpcId);
+      // Business interaction if applicable
+      if (this.currentBuildingBusinessType && this.interiorNPCManager) {
+        const placedNPC = this.interiorNPCManager.getPlacedNPC(nearestNpcId);
+        if (placedNPC) {
+          await this.handleBusinessInteraction(placedNPC);
+          return;
+        }
+      }
+      await this.handleOpenChat();
+      return;
+    }
+
+    // Exit only if player is near the door
+    if (this.activeInterior?.doorPosition) {
+      const doorDist = Vector3.Distance(playerPos, this.activeInterior.doorPosition);
+      if (doorDist < 3) {
+        await this.exitBuilding();
+      }
+    }
+  }
+
   private async handleProximityInteraction(): Promise<void> {
     if (!this.playerMesh || this.npcMeshes.size === 0) return;
 
@@ -14476,6 +15077,46 @@ Requirements:
   }
 
   /**
+   * Show the contextual action menu for the current target, but never fall
+   * back to opening a conversation. Used by the Q key.
+   */
+  private async handleContextualActionOnly(): Promise<void> {
+    const target = this.interactionPrompt?.getCurrentTarget();
+    if (!target) return;
+
+    const playerPos = this.playerMesh?.getAbsolutePosition();
+    const nearbyTypes = playerPos && this.interactionPrompt
+      ? this.interactionPrompt.getNearbyActionHotspotTypes(playerPos, 4)
+      : [];
+
+    let hasBusinessInteractions = false;
+    if (target.type === 'npc' && this.isInsideBuilding && this.currentBuildingBusinessType && this.interiorNPCManager) {
+      const placedNPC = this.interiorNPCManager.getPlacedNPC(target.id);
+      hasBusinessInteractions = !!placedNPC;
+    }
+
+    const resolverContext: ActionResolverContext = {
+      playerActionSystem: this.playerActionSystem,
+      nearbyActionHotspotTypes: nearbyTypes,
+      isInsideBuilding: this.isInsideBuilding,
+      currentBusinessType: this.currentBuildingBusinessType,
+      hasBusinessInteractions,
+      hasInventoryItems: (this.inventory?.getAllItems()?.length ?? 0) > 0,
+    };
+
+    const actions = resolveActions(target, resolverContext);
+    if (actions.length === 0) return; // No actions — do nothing (no chat fallback)
+
+    const menuOptions = resolveMenuOptions(target, (this.playerCefrLevel as any) || undefined);
+    this.contextualActionMenu?.show(
+      actions,
+      menuOptions,
+      (action) => this.dispatchContextualAction(action, target),
+      () => { /* menu closed */ },
+    );
+  }
+
+  /**
    * Dispatch a selected contextual action to the appropriate handler.
    */
   private async dispatchContextualAction(
@@ -14501,9 +15142,14 @@ Requirements:
         await this.handleOpenChat();
         break;
       }
+      case '__browse_wares__': {
+        this.setSelectedNPC(target.id);
+        await this.handleOpenShop(target.id);
+        break;
+      }
       // ── Navigation ─────────────────────────────────────────────────
       case '__enter_building__': {
-        await this.handleBuildingInteraction();
+        await this.handleBuildingInteraction(target.mesh as Mesh);
         break;
       }
 
@@ -14713,12 +15359,6 @@ Requirements:
       // Pause ambient NPC conversations so no new ones start during chat
       this.ambientConversationManager?.pause();
 
-      // Switch to first-person view for conversation immersion
-      if (this.cameraManager) {
-        this.preConversationCameraMode = this.cameraManager.getCurrentMode();
-        this.cameraManager.setMode('first_person', false);
-      }
-
       // Turn the NPC to face the player
       if (npcMesh && this.playerMesh) {
         const dir = this.playerMesh.position.subtract(npcMesh.position);
@@ -14765,6 +15405,9 @@ Requirements:
         const recentGreeting = this.npcProximitySpeechSystem.getRecentGreeting(npcId);
         this.chatPanel.setRecentGreeting(recentGreeting?.text || null);
       }
+
+      // Release pointer lock so the player can interact with the chat GUI
+      this.cameraManager?.releasePointerLock();
 
       // Open the chat panel — this is the core action
       // Pass current CEFR level so NPC language mode reflects player's latest progress
@@ -15367,6 +16010,7 @@ Requirements:
 
   private openContainerPanel(containerData: import('./ContainerSpawnSystem').ContainerData): void {
     if (!this.containerPanel) return;
+    this.cameraManager?.releasePointerLock();
 
     const playerItems = this.inventory?.getAllItems() || [];
     this.containerPanel.open({
@@ -15419,7 +16063,6 @@ Requirements:
 
     // Look up model template for 3D rendering in the overlay
     const modelTemplate = objectRole ? this.objectModelTemplates.get(objectRole) : undefined;
-
     if (this.examineOverlay) {
       this.examineOverlay.show({
         objectRole,
@@ -15797,6 +16440,10 @@ Requirements:
   }
 
   private handleConversationEnd(): void {
+    // Clear mid-conversation tracking so it resets for the next conversation
+    this._convTurnCount = 0;
+    this._convObjectiveNotified.clear();
+
     // Release NPC from conversation and hide talking indicator
     if (this.conversationNPCId) {
       // Emit assessment event before clearing the NPC ID — this is a safety net
@@ -15835,22 +16482,6 @@ Requirements:
     // Restore player mesh visibility
     if (this.playerMesh) {
       this.playerMesh.visibility = 1;
-    }
-
-    // Restore previous camera mode (do this BEFORE restarting the controller,
-    // so limits are correct when the controller's _updateTargetValue runs)
-    if (this.cameraManager && this.preConversationCameraMode && this.camera) {
-      // Re-attach camera controls first so mode switch can take effect
-      this.camera.attachControl(this.canvas, true);
-
-      // Restore camera mode (this resets radius, beta, limits, and player visibility)
-      this.cameraManager.setMode(this.preConversationCameraMode, false);
-      this.preConversationCameraMode = null;
-
-      // Re-target camera to player if available
-      if (this.playerMesh) {
-        this.camera.setTarget(this.playerMesh.position.add(new Vector3(0, 1.6, 0)));
-      }
     }
 
     // Restart the player's CharacterController
@@ -16677,7 +17308,7 @@ Requirements:
     // non-pickable meshes so trees, rocks, etc. can be inspected.
     this.scene.skipPointerMovePicking = false;
     this.scene.pointerMovePredicate = (mesh) =>
-      mesh.isEnabled() && mesh.isVisible;
+      mesh.isPickable && mesh.isEnabled();
 
     this.debugHoverObserver = this.scene.onPointerObservable.add((pointerInfo) => {
       if (pointerInfo.type !== PointerEventTypes.POINTERMOVE) return;
@@ -16732,8 +17363,7 @@ Requirements:
     if (this.scene && this.debugHoverObserver) {
       this.scene.onPointerObservable.remove(this.debugHoverObserver);
       this.debugHoverObserver = null;
-      // Restore performance optimization
-      this.scene.skipPointerMovePicking = true;
+      // Don't reset skipPointerMovePicking — the hover cursor system needs it
     }
     hideDebugHoverTooltip();
     clearDebugHighlight();
@@ -17548,6 +18178,44 @@ Requirements:
     this.syncActiveQuestToHud();
   }
 
+  /**
+   * Check active quest objectives for conversation turn requirements and
+   * notify the player mid-conversation when they've met them. Works for
+   * assessment conversations, talk_to_npc, complete_conversation, sustained_conversation, etc.
+   * Uses the local _convTurnCount (tracked per-conversation) since the
+   * QuestCompletionEngine only evaluates turn counts on conversation end.
+   */
+  private checkConversationObjectivesMet(): void {
+    const engine = this.questObjectManager?.getCompletionEngine();
+    if (!engine) return;
+
+    const conversationTypes = new Set([
+      'conversation', 'arrival_conversation', 'departure_conversation',
+      'periodic_conversational', 'talk_to_npc', 'complete_conversation',
+      'sustained_conversation', 'use_vocabulary', 'conversation_turns',
+    ]);
+
+    for (const quest of engine.getQuests()) {
+      if ((quest as any).status !== 'active') continue;
+      for (const obj of quest.objectives || []) {
+        if (obj.completed) continue;
+        if (!conversationTypes.has(obj.type)) continue;
+        const required = obj.requiredCount || 3;
+        if (required <= 1) continue; // Single-turn objectives complete instantly
+        const key = `${quest.id}_${obj.id}`;
+        if (this._convTurnCount >= required && !this._convObjectiveNotified.has(key)) {
+          this._convObjectiveNotified.add(key);
+          const questTitle = (quest as any).title || quest.id;
+          this.guiManager?.showToast({
+            title: 'Objective complete!',
+            description: `"${questTitle}" — you can end the conversation whenever you're ready, or keep chatting.`,
+            duration: 5000,
+          });
+        }
+      }
+    }
+  }
+
   private async handleQuestObjectiveCompleted(questId: string, objectiveId: string, type: string): Promise<void> {
     try {
       // Sync engine objective states to overlay FIRST so dataSource.loadQuests merges them
@@ -17814,15 +18482,12 @@ Requirements:
     try {
       const worldId = this.config.worldId;
 
-      // Demote current active quest(s) to 'available'
+      // Optimistically update local state so the UI reflects the change immediately
+      // (the GameMenuSystem re-renders synchronously after calling this callback)
       const currentActive = (this.quests || []).filter((q: any) => q.status === 'active');
       for (const q of currentActive) {
-        await this.dataSource.updateQuest(q.id, { status: 'available' });
         q.status = 'available';
       }
-
-      // Promote selected quest to 'active'
-      await this.dataSource.updateQuest(questId, { status: 'active' });
       const promoted = (this.quests || []).find((q: any) => q.id === questId);
       if (promoted) promoted.status = 'active';
 
@@ -17830,6 +18495,12 @@ Requirements:
       this.syncActiveQuestToHud();
       this.questTracker?.updateQuests(worldId);
       this.updateQuestIndicators();
+
+      // Persist to server in background
+      for (const q of currentActive) {
+        await this.dataSource.updateQuest(q.id, { status: 'available' });
+      }
+      await this.dataSource.updateQuest(questId, { status: 'active' });
 
       this.guiManager?.showToast({
         title: 'Quest Activated',
@@ -18109,6 +18780,17 @@ Requirements:
           });
         });
 
+        // Inject named locations (Notice Board, settlements, etc.) so the
+        // waypoint director's findBuildingByName can resolve them
+        this._namedLocations.forEach((loc, name) => {
+          if (!directorBuildingData.has(name)) {
+            directorBuildingData.set(name, {
+              position: { x: loc.x, y: loc.y ?? 0, z: loc.z },
+              metadata: { name, type: 'named_location' },
+            });
+          }
+        });
+
         // Pass world data to quest tracker for dynamic waypoint resolution
         if (this.questTracker) {
           this.questTracker.setWorldData(directorBuildingData, npcBuildingMap, npcPositions);
@@ -18199,8 +18881,12 @@ Requirements:
       'fighting': 'fighting',
     };
 
-    const cameraMode = gameTypeToCameraMode[gameType] || 'third_person';
-    
+    // Use world creator's explicit perspective if set, otherwise fall back to game-type default
+    const worldPerspective = (this.worldData as any)?.cameraPerspective
+      || (this.worldData as any)?.camera_perspective
+      || this.world3DConfig?.cameraPerspective
+      || (this.world3DConfig as any)?.camera_perspective;
+    const cameraMode = worldPerspective || gameTypeToCameraMode[gameType] || 'third_person';
     this.cameraManager.setMode(cameraMode, false);
 
     // Initialize appropriate combat variant based on game type
@@ -18505,6 +19191,18 @@ Requirements:
       this.scene.onPointerObservable.remove(this.pointerObserver);
       this.pointerObserver = null;
     }
+    if (this.scene && this.hoverObserver) {
+      this.scene.onPointerObservable.remove(this.hoverObserver);
+      this.hoverObserver = null;
+    }
+    this.hoveredMesh = null;
+    // Dispose music
+    try { this.musicSettlement1?.dispose(); } catch { /* already disposed */ }
+    try { this.musicSettlement2?.dispose(); } catch { /* already disposed */ }
+    try { this.musicWilderness?.dispose(); } catch { /* already disposed */ }
+    this.musicSettlement1 = null;
+    this.musicSettlement2 = null;
+    this.musicWilderness = null;
     this.disableDebugHover();
     disposeDebugHoverTooltip();
   }

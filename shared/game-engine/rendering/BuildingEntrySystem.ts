@@ -112,6 +112,7 @@ export class BuildingEntrySystem {
   private businessBehaviorSystem: BusinessBehaviorSystem | null = null;
   private npcDataSource: (() => Map<string, { mesh: Mesh; characterData?: any }>) | null = null;
   private playerCharacterIdSource: (() => string | undefined) | null = null;
+  private getBuildingOccupants: ((buildingId: string) => string[]) | null = null;
 
   /** Override the full scene transition for testing — receives the black-period callback */
   public _transitionOverride: ((duringBlack: () => Promise<void> | void) => Promise<void>) | null = null;
@@ -201,11 +202,13 @@ export class BuildingEntrySystem {
   setInteriorNPCManager(
     manager: InteriorNPCManager,
     getNPCs: () => Map<string, { mesh: Mesh; characterData?: any }>,
-    getPlayerCharacterId?: () => string | undefined
+    getPlayerCharacterId?: () => string | undefined,
+    getBuildingOccupants?: (buildingId: string) => string[]
   ): void {
     this.interiorNPCManager = manager;
     this.npcDataSource = getNPCs;
     this.playerCharacterIdSource = getPlayerCharacterId ?? null;
+    this.getBuildingOccupants = getBuildingOccupants ?? null;
   }
 
   /**
@@ -250,8 +253,10 @@ export class BuildingEntrySystem {
     if (this.isInsideBuilding) return;
 
     const data = this.buildings.get(buildingId);
-    if (!data) return;
-
+    if (!data) {
+      console.warn(`[BuildingEntry] No building data for ${buildingId}`);
+      return;
+    }
     const doorEntry = this.doorEntryPoints.get(buildingId);
     const doorWorldPos = doorEntry?.worldPosition ?? data.position.clone();
 
@@ -299,7 +304,14 @@ export class BuildingEntrySystem {
           buildingType: data.buildingType,
           businessType: data.businessType,
         };
+
+        // Include NPCs that the schedule system has placed inside this building
         const npcMap = this.npcDataSource();
+        const scheduledNpcIds: string[] = this.getBuildingOccupants
+          ? this.getBuildingOccupants(buildingId)
+          : [];
+        (metadata as any).scheduledNpcIds = scheduledNpcIds;
+
         const playerCharId = this.playerCharacterIdSource?.();
         this.interiorNPCManager.populateInterior(
           buildingId,
@@ -309,16 +321,20 @@ export class BuildingEntrySystem {
           playerCharId
         );
 
+        const placedNPCs = this.interiorNPCManager.getPlacedNPCs();
+
         // Register placed NPCs with business behavior system
         if (this.businessBehaviorSystem && data.businessType) {
           this.businessBehaviorSystem.clearAll();
-          for (const placed of this.interiorNPCManager.getPlacedNPCs()) {
+          for (const placed of placedNPCs) {
             this.businessBehaviorSystem.registerNPC(placed.npcId, placed.role, data.businessType);
           }
         }
+      } else {
+        console.warn(`[BuildingEntry] Cannot populate NPCs: interiorNPCManager=${!!this.interiorNPCManager}, npcDataSource=${!!this.npcDataSource}`);
       }
 
-      // Notify callback
+      // Notify callback — BabylonGame uses this to load NPC clones into the interior scene
       this.callbacks.onEnterBuilding?.(buildingId, interior);
     });
 

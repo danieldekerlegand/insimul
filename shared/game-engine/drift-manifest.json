@@ -1,7 +1,7 @@
 {
   "version": "1",
   "description": "Tracks in-app game-system source files that must stay aligned with Babylon.js export, Unreal, Unity, and Godot export templates.",
-  "lastUpdated": "2026-04-09T22:27:02.697Z",
+  "lastUpdated": "2026-04-10T18:59:29.205Z",
   "trackedFiles": [
     {
       "path": "shared/game-engine/systems/SurvivalNeedsSystem.ts",
@@ -194,7 +194,7 @@
     {
       "path": "shared/game-engine/rendering/ProceduralBuildingGenerator.ts",
       "description": "Procedural building placement and geometry. Changes affect world-generator templates.",
-      "hash": "a25cc92147c32bc37e1734c5453a54c94a943e151f0098d5fa46aac48313f3b2",
+      "hash": "b1bac0204694c2258bc90a1584c48cd807836fd96b672a169779dac69af9256f",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -316,7 +316,7 @@
     {
       "path": "client/src/components/3DGame/DataSource.ts",
       "description": "Data loading abstraction: ApiDataSource (in-app) and FileDataSource (exports). FileDataSource defines the contract for how exported games load JSON/Prolog data.",
-      "hash": "003be68599679fd8329a7e70143a8211caa3a731705907aea2be5fe557c4d3b8",
+      "hash": "56218ca3e0a9a6496428d46a3bdda159a6c4374a18838abe755f2c43ecfa05eb",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -343,7 +343,7 @@
     {
       "path": "shared/game-engine/ir-types.ts",
       "description": "WorldIR intermediate representation: the single source of truth consumed by all 4 engine generators. New IR fields not reflected in generators cause silent data loss.",
-      "hash": "3997252bd80e0d92008019bbd0b2a70cb1a2dfa7225ec45c8a4dd7e6658fc13f",
+      "hash": "354f61358ecac6e09bcd7591d49951ec9ba175d0de9703d58561dd44edb6510b",
       "engineMappings": [
         {
           "engine": "babylon",
@@ -392,7 +392,7 @@
     {
       "path": "shared/game-engine/rendering/QuestObjectManager.ts",
       "description": "Quest object lifecycle: 15 objective types, collectible tracking, completion logic. New objective types need handling in exported quest systems.",
-      "hash": "0a9ad77aad377be163c85a68be63da13217305b4aea2009db0b0936a463892d5",
+      "hash": "3f619b997e0aa223c929598182cd450163cbe16c958d7e3e21d23082c076ac32",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -419,7 +419,7 @@
     {
       "path": "shared/prolog/quest-converter.ts",
       "description": "Converts quests to Prolog predicates for knowledge-base.pl. Format changes affect all exported engines that load the KB.",
-      "hash": "d9785b232f0b05f7de6cee30c8d6e9ea81ab67de4395c5b171726d356e1fdace",
+      "hash": "03b17d69b1f8efdd12b4556064f620cae47869f9d8d2274c5d73bafc12ed8a18",
       "engineMappings": [
         {
           "engine": "unreal",
@@ -531,7 +531,7 @@
     {
       "path": "shared/game-engine/rendering/ProceduralNatureGenerator.ts",
       "description": "Biome-driven nature placement: 4 tree types, rocks, geological features, grass.",
-      "hash": "53980a10424adb0d28bd92885e63b23fba2f9ef1f046734103aaf35143d52dde",
+      "hash": "205804076fe36f6ff03038dd0d89165070356e32ddc419bb97eb85c71b3c35d9",
       "engineMappings": [
         {
           "engine": "unity",
@@ -551,7 +551,7 @@
     {
       "path": "shared/game-engine/rendering/RoadGenerator.ts",
       "description": "Road network: ribbon meshes, sidewalks, center lines, crosswalks, street lights.",
-      "hash": "311f906e7e0b644e7c9cbfe44c46f7a238a3b1f12ac79968a1276a14207670d9",
+      "hash": "c679d0c47659e3e60a1f6f05d37bb6b671b616d30561f64dee48c3e0b4fe1313",
       "engineMappings": [
         {
           "engine": "unity",
@@ -571,7 +571,7 @@
     {
       "path": "shared/game-engine/rendering/BuildingInteriorGenerator.ts",
       "description": "Interior generation: multi-room layouts, role-specific furniture, entry/exit transitions.",
-      "hash": "e7b4b0cc5d128ad02aa08d68c1104f5bb1f1dcdb0d178d6b6e32647e90b72791",
+      "hash": "d1412f517674fd9998ffab7a79efa80752b97c07912d88ee9b7fce262ef189cd",
       "engineMappings": [
         {
           "engine": "unity",
@@ -632,7 +632,7 @@
     {
       "path": "shared/game-engine/rendering/GameMenuSystem.ts",
       "description": "Game menu: pause, settings, save/load, quit. Changes affect menu templates in all engines.",
-      "hash": "7d2abd549dca491b197bcab7ae30de972717429b5473e11e48bc4aa4113b8b6d",
+      "hash": "8bbec06ef01f04482d352643fba80dd68c56835a1b30d12d1bc5ea434afc1824",
       "engineMappings": [
         {
           "engine": "unity",
@@ -705,7 +705,7 @@
     {
       "path": "server/services/game-export/ir-generator.ts",
       "description": "IR generator: produces the WorldIR consumed by ALL exporters. Changes here can silently affect every engine's output.",
-      "hash": "c59052a441216ed9488f65baea83635e2fbf5d6ffde809953b9f4a25a4d9f527",
+      "hash": "734446dab0c9cda29f7ccd7900059fe8e471e6cc6ee5e0753b4bafe0e2f52591",
       "engineMappings": [
         {
           "engine": "babylon",

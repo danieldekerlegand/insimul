@@ -72,6 +72,8 @@ export interface InteractableTarget {
   craftingStationType?: string;
   /** Bilingual subtitle text (e.g., English name below translated name) */
   subtitleText?: string;
+  /** NPC role (merchant, guard, etc.) for action resolution */
+  npcRole?: string;
 }
 
 export interface RegisteredNPC {
@@ -575,6 +577,7 @@ export class InteractionPromptSystem {
   private buildNPCTarget(npc: RegisteredNPC): InteractableTarget {
     const questIndicator = this.getQuestIndicator?.(npc.id) ?? null;
     const lookup = this._translationLookup ?? undefined;
+    const npcRole = npc.mesh?.metadata?.npcRole as string | undefined;
 
     return {
       type: 'npc',
@@ -586,6 +589,7 @@ export class InteractionPromptSystem {
         this._cefrLevel, this._immersionMode, lookup,
       ),
       questIndicator: questIndicator ?? undefined,
+      npcRole,
     };
   }
 
@@ -1068,6 +1072,8 @@ export class InteractionPromptSystem {
     switch (type) {
       case 'available':
         return { text: translateQuestHint('Quest Available', this._cefrLevel, this._immersionMode, lookup), color: '#FFD700' };
+      case 'objective':
+        return { text: translateQuestHint('Quest Objective', this._cefrLevel, this._immersionMode, lookup), color: '#FFD700' };
       case 'in_progress':
         return { text: translateQuestHint('Quest In Progress', this._cefrLevel, this._immersionMode, lookup), color: '#C0C0C0' };
       case 'turn_in':

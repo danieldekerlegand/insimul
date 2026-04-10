@@ -44,7 +44,11 @@ export type QuestObjectiveType =
   | 'navigate_language'       // Navigate the world following target-language directions
   // Language learning — composition
   | 'write_response'          // Write text in target language in response to a prompt
-  | 'describe_scene';         // Describe current scene in target language
+  | 'describe_scene'          // Describe current scene in target language
+  // Investigation / narrative
+  | 'collect_clue'            // Collect clue items for investigation quests
+  | 'read_text'               // Read a specific text/document
+  | 'find_text';              // Find a specific text/document
 
 export interface QuestObjective {
   id: string;
@@ -202,6 +206,8 @@ export class QuestObjectManager {
   private onIdentificationPrompt?: (prompt: IdentificationPrompt) => void;
   /** Check whether a world-space XZ point falls inside a building footprint. */
   private isPointInBuilding?: (x: number, z: number) => boolean;
+  /** Resolve a location name to a world position (for spawning quest items at named locations) */
+  private resolveLocationPosition?: (locationName: string) => Vector3 | null;
 
   /** Current building the player is inside (null if outside) */
   private currentBuildingId: string | null = null;
@@ -669,7 +675,9 @@ export class QuestObjectManager {
             description: obj.description || objType.replace(/_/g, ' '),
             completed: obj.completed || false,
             npcName: obj.npcName || obj.npcId || obj.target,
-            itemName: obj.item || obj.target,
+            npcId: obj.npcId,
+            itemName: obj.item || obj.itemName || obj.target,
+            locationName: obj.locationName,
             requiredCount: obj.requiredCount || obj.required || 1,
             currentCount: obj.currentCount || obj.current || 0,
             completionTrigger: obj.completionTrigger,
@@ -896,6 +904,17 @@ export class QuestObjectManager {
       case 'escort_npc':
         // Spawn a purple destination marker for the escort target
         this.spawnEscortDestination(objective);
+        break;
+
+      case 'collect_clue':
+        // Spawn interactable clue object(s) at the objective location
+        this.spawnClueItems(objective);
+        break;
+
+      case 'read_text':
+      case 'find_text':
+        // Spawn a readable text/document at the objective location if not already in the world
+        this.spawnReadableText(objective);
         break;
     }
   }
@@ -1436,6 +1455,175 @@ export class QuestObjectManager {
   }
 
   /**
+   * Spawn interactable clue objects for collect_clue objectives.
+   * Places a glowing scroll/document at the objective's location that emits
+   * a clue_discovered event when the player walks near it.
+   */
+  private spawnClueItems(objective: QuestObjective) {
+    const count = objective.requiredCount || objective.itemCount || 1;
+
+    // Resolve spawn positions: explicit > location name lookup > random
+    let positions = objective.spawnPositions;
+    if (!positions && objective.locationPosition) {
+      positions = [objective.locationPosition];
+    }
+    if (!positions && objective.locationName && this.resolveLocationPosition) {
+      const resolved = this.resolveLocationPosition(objective.locationName);
+      if (resolved) positions = [resolved];
+    }
+    if (!positions) {
+      positions = this.generateSpawnPositions(count);
+    }
+
+    for (let i = 0; i < positions.length; i++) {
+      const itemId = `${objective.id}_clue_${i}`;
+      const position = positions[i];
+
+      // Create a scroll/document mesh
+      const clue = MeshBuilder.CreateBox(
+        `quest_clue_${itemId}`,
+        { width: 0.4, height: 0.05, depth: 0.6 },
+        this.scene
+      );
+      clue.position = position.clone();
+      clue.position.y += 1.2; // Float above ground
+
+      const material = new StandardMaterial(`quest_clue_mat_${itemId}`, this.scene);
+      material.diffuseColor = new Color3(0.9, 0.85, 0.6); // Parchment color
+      material.emissiveColor = new Color3(0.4, 0.35, 0.2);
+      material.alpha = 0.95;
+      clue.material = material;
+
+      // Floating + rotation animation
+      const floatAnim = new Animation(
+        `quest_clue_float_${itemId}`, 'position.y', 30,
+        Animation.ANIMATIONTYPE_FLOAT, Animation.ANIMATIONLOOPMODE_CYCLE
+      );
+      floatAnim.setKeys([
+        { frame: 0, value: position.y + 1.2 },
+        { frame: 45, value: position.y + 1.6 },
+        { frame: 90, value: position.y + 1.2 },
+      ]);
+      clue.animations.push(floatAnim);
+
+      const rotAnim = new Animation(
+        `quest_clue_rot_${itemId}`, 'rotation.y', 30,
+        Animation.ANIMATIONTYPE_FLOAT, Animation.ANIMATIONLOOPMODE_CYCLE
+      );
+      rotAnim.setKeys([
+        { frame: 0, value: 0 },
+        { frame: 90, value: Math.PI * 2 },
+      ]);
+      clue.animations.push(rotAnim);
+      this.scene.beginAnimation(clue, 0, 90, true);
+
+      // Click interaction
+      clue.actionManager = new ActionManager(this.scene);
+      clue.actionManager.registerAction(
+        new ExecuteCodeAction(ActionManager.OnPickTrigger, () => {
+          this.collectClue(objective, clue, itemId, i, count);
+        })
+      );
+      clue.isPickable = true;
+
+      this.locationMarkers.set(itemId, clue);
+    }
+  }
+
+  /**
+   * Handle player collecting a clue item.
+   */
+  private collectClue(objective: QuestObjective, mesh: Mesh, itemId: string, clueIndex: number, totalClues: number) {
+    // Remove the mesh
+    this.scene.stopAnimation(mesh);
+    mesh.dispose();
+    this.locationMarkers.delete(itemId);
+
+    // Emit clue_discovered event
+    this.eventBus?.emit({
+      type: 'clue_discovered',
+      clueId: `${objective.questId}_clue_${clueIndex}`,
+      clueCategory: 'physical_evidence',
+      clueSource: objective.itemName || objective.description || 'clue',
+      clueCount: clueIndex + 1,
+      totalClueCount: totalClues,
+    });
+
+    this.onQuestItemCollected?.(objective.questId, objective.id, objective.itemName || 'clue');
+  }
+
+  /**
+   * Spawn a readable text/document at the objective location.
+   * For read_text objectives, places a glowing book that the player can interact with.
+   * Only spawns if the objective has a location — texts already in the world
+   * (via BookSpawnManager/TextSpawner) don't need duplicate spawning.
+   */
+  private spawnReadableText(objective: QuestObjective) {
+    // Resolve position: explicit > location name lookup > skip
+    let position = objective.spawnPositions?.[0] || objective.locationPosition || null;
+    if (!position && objective.locationName && this.resolveLocationPosition) {
+      position = this.resolveLocationPosition(objective.locationName);
+    }
+    if (!position) return; // No location — text is probably already in the world via BookSpawnManager
+    const itemId = `${objective.id}_text_0`;
+
+    // Check if already spawned
+    if (this.locationMarkers.has(itemId)) return;
+
+    const book = MeshBuilder.CreateBox(
+      `quest_text_${itemId}`,
+      { width: 0.3, height: 0.4, depth: 0.05 },
+      this.scene
+    );
+    book.position = position.clone();
+    book.position.y += 1.2;
+
+    const material = new StandardMaterial(`quest_text_mat_${itemId}`, this.scene);
+    material.diffuseColor = new Color3(0.6, 0.4, 0.2); // Book brown
+    material.emissiveColor = new Color3(0.3, 0.2, 0.1);
+    book.material = material;
+
+    // Gentle float animation
+    const floatAnim = new Animation(
+      `quest_text_float_${itemId}`, 'position.y', 30,
+      Animation.ANIMATIONTYPE_FLOAT, Animation.ANIMATIONLOOPMODE_CYCLE
+    );
+    floatAnim.setKeys([
+      { frame: 0, value: position.y + 1.2 },
+      { frame: 60, value: position.y + 1.5 },
+      { frame: 120, value: position.y + 1.2 },
+    ]);
+    book.animations.push(floatAnim);
+    this.scene.beginAnimation(book, 0, 120, true);
+
+    const textId = objective.itemName || 'quest_text';
+    book.actionManager = new ActionManager(this.scene);
+    book.actionManager.registerAction(
+      new ExecuteCodeAction(ActionManager.OnPickTrigger, () => {
+        // Emit text_found then text_read events
+        this.eventBus?.emit({
+          type: 'text_found',
+          textId,
+          textName: objective.itemName || objective.description || 'Document',
+        });
+        this.eventBus?.emit({
+          type: 'text_read',
+          textId,
+        });
+
+        // Remove after reading
+        this.scene.stopAnimation(book);
+        book.dispose();
+        this.locationMarkers.delete(itemId);
+        this.onQuestItemCollected?.(objective.questId, objective.id, textId);
+      })
+    );
+    book.isPickable = true;
+
+    this.locationMarkers.set(itemId, book);
+  }
+
+  /**
    * Check if an escorted NPC has reached their destination.
    * Called from the game loop alongside other proximity checks.
    * @param getNpcPosition callback to retrieve an NPC mesh position by ID
@@ -1954,6 +2142,11 @@ export class QuestObjectManager {
   /** Register a toast notification callback for objective completion messages. */
   public setShowToast(callback: (title: string, description?: string) => void) {
     this.showToast = callback;
+  }
+
+  /** Set a resolver that maps location names to world positions for quest item spawning. */
+  public setLocationResolver(resolver: (locationName: string) => Vector3 | null) {
+    this.resolveLocationPosition = resolver;
   }
 
   /** Register a building-check callback so spawned items avoid building interiors. */

@@ -886,20 +886,26 @@ export class BuildingInteriorGenerator {
       })
     );
 
-    // Invisible collision walls — thick boxes that reliably block FreeCamera ellipsoid.
+    // Invisible collision walls — thick boxes that reliably block CharacterController ellipsoid.
     // Visual wall planes are too thin for collision detection; these sit behind them.
+    // Walls and ceiling cap extend above the visual height to prevent jumping out.
     const CWALL = 0.3; // collision wall thickness
+    const wallHeight = height + 2; // extra height so player can't jump over
     const collisionWalls = [
       // Back wall (north, +Z)
-      { w: width + CWALL * 2, h: height, d: CWALL, x: 0, y: height / 2, z: depth / 2 + CWALL / 2 },
+      { w: width + CWALL * 2, h: wallHeight, d: CWALL, x: 0, y: wallHeight / 2, z: depth / 2 + CWALL / 2 },
       // Left wall (west, -X)
-      { w: CWALL, h: height, d: depth + CWALL * 2, x: -(width / 2 + CWALL / 2), y: height / 2, z: 0 },
+      { w: CWALL, h: wallHeight, d: depth + CWALL * 2, x: -(width / 2 + CWALL / 2), y: wallHeight / 2, z: 0 },
       // Right wall (east, +X)
-      { w: CWALL, h: height, d: depth + CWALL * 2, x: width / 2 + CWALL / 2, y: height / 2, z: 0 },
+      { w: CWALL, h: wallHeight, d: depth + CWALL * 2, x: width / 2 + CWALL / 2, y: wallHeight / 2, z: 0 },
       // Front wall left (south-west, around door)
-      { w: leftPanelWidth, h: height, d: CWALL, x: -(doorWidth / 2 + leftPanelWidth / 2), y: height / 2, z: -(depth / 2 + CWALL / 2) },
+      { w: leftPanelWidth, h: wallHeight, d: CWALL, x: -(doorWidth / 2 + leftPanelWidth / 2), y: wallHeight / 2, z: -(depth / 2 + CWALL / 2) },
       // Front wall right (south-east, around door)
-      { w: rightPanelWidth, h: height, d: CWALL, x: doorWidth / 2 + rightPanelWidth / 2, y: height / 2, z: -(depth / 2 + CWALL / 2) },
+      { w: rightPanelWidth, h: wallHeight, d: CWALL, x: doorWidth / 2 + rightPanelWidth / 2, y: wallHeight / 2, z: -(depth / 2 + CWALL / 2) },
+      // Ceiling cap — thick invisible slab prevents jumping through the visual ceiling plane.
+      // Must be thick enough that fast-moving collision ellipsoids can't clip through in one frame.
+      // Positioned so its bottom face aligns with the visual ceiling (y = height).
+      { w: width + CWALL * 2, h: 3, d: depth + CWALL * 2, x: 0, y: height + 1.5, z: 0 },
     ];
     for (let i = 0; i < collisionWalls.length; i++) {
       const cw = collisionWalls[i];
@@ -1864,7 +1870,7 @@ export class BuildingInteriorGenerator {
       clearTimeout(meta.autoCloseTimer);
     }
     meta.autoCloseTimer = setTimeout(() => {
-      if (meta.isOpen) {
+      if (!door.isDisposed() && door.metadata?.isOpen) {
         this.closeDoor(door);
       }
     }, DOOR_AUTO_CLOSE_MS);
@@ -1875,6 +1881,7 @@ export class BuildingInteriorGenerator {
    */
   private closeDoor(door: Mesh): void {
     const meta = door.metadata;
+    if (!meta) return; // Door was disposed (e.g., player exited interior)
     meta.isOpen = false;
     door.checkCollisions = true;
 

@@ -14,3 +14,6 @@ editor-repo/
 
 # Local AI models (downloaded via scripts/setup-local-ai.sh)
 models/
+
+# Ignore exports
+exports/

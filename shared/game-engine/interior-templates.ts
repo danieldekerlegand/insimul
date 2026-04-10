@@ -649,7 +649,7 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
     category: 'commercial_retail',
     buildingType: 'shop',
     matchBusinessTypes: ['shop', 'store', 'market'],
-    width: 17, depth: 17, height: 4.5,
+    width: 17, depth: 21, height: 4.5,
     floorCount: 2,
     colors: { floor: { r: 0.45, g: 0.4, b: 0.35 }, wall: PLASTER, ceiling: { r: 0.55, g: 0.5, b: 0.45 } },
     rooms: [
@@ -670,7 +670,7 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
     category: 'commercial_food',
     buildingType: 'bar',
     matchBusinessTypes: ['bar', 'pub', 'saloon'],
-    width: 17, depth: 14, height: 4.5,
+    width: 17, depth: 19, height: 4.5,
     floorCount: 1,
     colors: { floor: DARK_WOOD, wall: { r: 0.45, g: 0.32, b: 0.18 }, ceiling: DARK_CEILING },
     rooms: [
@@ -687,7 +687,7 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
     category: 'commercial_food',
     buildingType: 'bakery',
     matchBusinessTypes: ['bakery', 'patisserie'],
-    width: 14, depth: 14, height: 4,
+    width: 14, depth: 18, height: 4,
     floorCount: 1,
     colors: { floor: MEDIUM_WOOD, wall: { r: 0.7, g: 0.65, b: 0.55 }, ceiling: { r: 0.6, g: 0.55, b: 0.48 } },
     rooms: [
@@ -706,7 +706,7 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
     category: 'residential',
     buildingType: 'residence',
     matchBusinessTypes: ['residence', 'house', 'home'],
-    width: 13, depth: 13, height: 3.5,
+    width: 13, depth: 17, height: 3.5,
     floorCount: 1,
     colors: { floor: MEDIUM_WOOD, wall: WARM_WALL, ceiling: { r: 0.55, g: 0.5, b: 0.45 } },
     rooms: [
@@ -725,7 +725,7 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
     category: 'residential',
     buildingType: 'residence_medium',
     matchBusinessTypes: ['residence_medium'],
-    width: 14, depth: 14, height: 4,
+    width: 14, depth: 18, height: 4,
     floorCount: 2,
     colors: { floor: MEDIUM_WOOD, wall: WARM_WALL, ceiling: { r: 0.55, g: 0.5, b: 0.45 } },
     rooms: [
@@ -957,7 +957,7 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
     category: 'commercial_service',
     buildingType: 'barbershop',
     matchBusinessTypes: ['barbershop', 'barber', 'Barbershop'],
-    width: 10, depth: 10, height: 3.5,
+    width: 10, depth: 14, height: 3.5,
     floorCount: 1,
     colors: { floor: MEDIUM_WOOD, wall: WHITE_WASH, ceiling: { r: 0.6, g: 0.58, b: 0.55 } },
     rooms: [
@@ -974,7 +974,7 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
     category: 'commercial_service',
     buildingType: 'tailor',
     matchBusinessTypes: ['tailor', 'seamstress', 'clothier'],
-    width: 12, depth: 10, height: 4,
+    width: 12, depth: 16, height: 4,
     floorCount: 2,
     colors: { floor: MEDIUM_WOOD, wall: WARM_WALL, ceiling: { r: 0.55, g: 0.5, b: 0.45 } },
     rooms: [
@@ -995,7 +995,7 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
     category: 'commercial_service',
     buildingType: 'pharmacy',
     matchBusinessTypes: ['pharmacy', 'herbshop', 'herb_shop'],
-    width: 12, depth: 12, height: 4,
+    width: 12, depth: 16, height: 4,
     floorCount: 2,
     colors: { floor: { r: 0.5, g: 0.48, b: 0.45 }, wall: CLINIC_WHITE, ceiling: { r: 0.62, g: 0.6, b: 0.55 } },
     rooms: [
@@ -1016,7 +1016,7 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
     category: 'commercial_service',
     buildingType: 'lawfirm',
     matchBusinessTypes: ['lawfirm', 'law_firm', 'lawyer', 'insuranceoffice', 'realestateoffice'],
-    width: 14, depth: 12, height: 4.5,
+    width: 14, depth: 17, height: 4.5,
     floorCount: 3,
     colors: { floor: DARK_WOOD, wall: WARM_WALL, ceiling: { r: 0.5, g: 0.45, b: 0.4 } },
     rooms: [
@@ -1115,7 +1115,7 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
     category: 'civic',
     buildingType: 'policestation',
     matchBusinessTypes: ['policestation', 'police_station', 'police', 'guard'],
-    width: 17, depth: 14, height: 4.5,
+    width: 17, depth: 19, height: 4.5,
     floorCount: 2,
     colors: { floor: STONE_GRAY, wall: { r: 0.6, g: 0.58, b: 0.55 }, ceiling: { r: 0.55, g: 0.53, b: 0.5 } },
     rooms: [
@@ -1138,7 +1138,7 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
     category: 'civic',
     buildingType: 'firestation',
     matchBusinessTypes: ['firestation', 'fire_station', 'firehouse'],
-    width: 17, depth: 17, height: 5,
+    width: 17, depth: 21, height: 5,
     floorCount: 2,
     colors: { floor: STONE_GRAY, wall: BRICK_RED, ceiling: { r: 0.4, g: 0.35, b: 0.3 } },
     rooms: [
@@ -1247,7 +1247,7 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
     category: 'commercial_retail',
     buildingType: 'jewelrystore',
     matchBusinessTypes: ['jewelrystore', 'jewelry_store', 'jeweler'],
-    width: 12, depth: 10, height: 4,
+    width: 12, depth: 16, height: 4,
     floorCount: 2,
     colors: { floor: DARK_WOOD, wall: { r: 0.5, g: 0.45, b: 0.38 }, ceiling: { r: 0.45, g: 0.4, b: 0.35 } },
     rooms: [
@@ -1268,7 +1268,7 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
     category: 'commercial_retail',
     buildingType: 'book_store',
     matchBusinessTypes: ['bookstore', 'book_store', 'bookseller'],
-    width: 12, depth: 12, height: 4.5,
+    width: 12, depth: 16, height: 4.5,
     floorCount: 2,
     colors: { floor: DARK_WOOD, wall: WARM_WALL, ceiling: { r: 0.5, g: 0.45, b: 0.4 } },
     rooms: [
@@ -1289,7 +1289,7 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
     category: 'commercial_retail',
     buildingType: 'pawnshop',
     matchBusinessTypes: ['pawnshop', 'pawn_shop'],
-    width: 12, depth: 10, height: 4,
+    width: 12, depth: 16, height: 4,
     floorCount: 2,
     colors: { floor: DARK_WOOD, wall: { r: 0.45, g: 0.4, b: 0.35 }, ceiling: { r: 0.4, g: 0.38, b: 0.35 } },
     rooms: [
@@ -1333,7 +1333,7 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
     category: 'industrial',
     buildingType: 'carpenter',
     matchBusinessTypes: ['carpenter', 'Carpenter', 'woodworker', 'joiner'],
-    width: 14, depth: 12, height: 4.5,
+    width: 14, depth: 17, height: 4.5,
     floorCount: 1,
     colors: { floor: SAWDUST_TAN, wall: LIGHT_WOOD, ceiling: { r: 0.45, g: 0.38, b: 0.28 } },
     rooms: [
@@ -1352,7 +1352,7 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
     category: 'industrial',
     buildingType: 'butcher',
     matchBusinessTypes: ['butcher', 'Butcher', 'meatshop'],
-    width: 12, depth: 10, height: 4,
+    width: 12, depth: 16, height: 4,
     floorCount: 1,
     colors: { floor: STONE_GRAY, wall: WHITE_WASH, ceiling: { r: 0.6, g: 0.58, b: 0.55 } },
     rooms: [
@@ -1373,7 +1373,7 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
     category: 'maritime',
     buildingType: 'harbor',
     matchBusinessTypes: ['Harbor', 'port', 'dock'],
-    width: 17, depth: 17, height: 4.5,
+    width: 17, depth: 21, height: 4.5,
     floorCount: 2,
     colors: { floor: WEATHERED_WOOD, wall: { r: 0.5, g: 0.48, b: 0.42 }, ceiling: { r: 0.42, g: 0.4, b: 0.35 } },
     rooms: [
@@ -1413,7 +1413,7 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
     category: 'maritime',
     buildingType: 'fishmarket',
     matchBusinessTypes: ['fishmarket', 'fish_market', 'FishMarket', 'fishmonger'],
-    width: 17, depth: 12, height: 4,
+    width: 17, depth: 19, height: 4,
     floorCount: 1,
     colors: { floor: STONE_GRAY, wall: { r: 0.55, g: 0.55, b: 0.52 }, ceiling: { r: 0.5, g: 0.48, b: 0.45 } },
     rooms: [
@@ -1453,7 +1453,7 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
     category: 'residential',
     buildingType: 'cottage',
     matchBusinessTypes: ['cottage'],
-    width: 10, depth: 10, height: 3.5,
+    width: 10, depth: 14, height: 3.5,
     floorCount: 1,
     colors: { floor: MEDIUM_WOOD, wall: COTTAGE_WALL, ceiling: { r: 0.5, g: 0.45, b: 0.38 } },
     rooms: [
@@ -1604,7 +1604,7 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
     category: 'professional',
     buildingType: 'stables',
     matchBusinessTypes: ['stables', 'stable', 'livery'],
-    width: 17, depth: 14, height: 4.5,
+    width: 17, depth: 19, height: 4.5,
     floorCount: 1,
     colors: { floor: { r: 0.35, g: 0.3, b: 0.22 }, wall: { r: 0.5, g: 0.35, b: 0.2 }, ceiling: { r: 0.4, g: 0.3, b: 0.18 } },
     rooms: [
@@ -1621,7 +1621,7 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
     category: 'military',
     buildingType: 'barracks',
     matchBusinessTypes: ['barracks', 'garrison', 'guardhouse'],
-    width: 20, depth: 16, height: 4.5,
+    width: 20, depth: 22, height: 4.5,
     floorCount: 2,
     colors: { floor: STONE_GRAY, wall: STONE_LIGHT, ceiling: { r: 0.4, g: 0.38, b: 0.35 } },
     rooms: [
@@ -1645,7 +1645,7 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
     category: 'commercial_service',
     buildingType: 'bathhouse',
     matchBusinessTypes: ['bathhouse', 'bath_house', 'spa'],
-    width: 18, depth: 16, height: 4.5,
+    width: 18, depth: 21, height: 4.5,
     floorCount: 1,
     colors: { floor: STONE_GRAY, wall: CLINIC_WHITE, ceiling: { r: 0.6, g: 0.58, b: 0.55 } },
     rooms: [
@@ -1664,7 +1664,7 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
     category: 'commercial_service',
     buildingType: 'dentaloffice',
     matchBusinessTypes: ['dentaloffice', 'dental_office', 'dentist', 'optometryoffice', 'optometry_office', 'optometrist', 'tattooparlor', 'tattoo_parlor', 'tattoo'],
-    width: 14, depth: 12, height: 4,
+    width: 14, depth: 17, height: 4,
     floorCount: 1,
     colors: { floor: STONE_GRAY, wall: CLINIC_WHITE, ceiling: { r: 0.65, g: 0.63, b: 0.6 } },
     rooms: [
@@ -1683,7 +1683,7 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
     category: 'civic',
     buildingType: 'mortuary',
     matchBusinessTypes: ['mortuary', 'funeral', 'undertaker'],
-    width: 14, depth: 12, height: 4,
+    width: 14, depth: 17, height: 4,
     floorCount: 1,
     colors: { floor: STONE_GRAY, wall: { r: 0.45, g: 0.42, b: 0.4 }, ceiling: { r: 0.4, g: 0.38, b: 0.36 } },
     rooms: [
@@ -1702,7 +1702,7 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
     category: 'industrial',
     buildingType: 'windmill',
     matchBusinessTypes: ['windmill', 'watermill', 'lumbermill', 'mill'],
-    width: 14, depth: 12, height: 5,
+    width: 14, depth: 17, height: 5,
     floorCount: 2,
     colors: { floor: MEDIUM_WOOD, wall: LIGHT_WOOD, ceiling: DARK_CEILING },
     rooms: [
@@ -1721,7 +1721,7 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
     category: 'industrial',
     buildingType: 'mine',
     matchBusinessTypes: ['mine', 'quarry'],
-    width: 16, depth: 14, height: 4,
+    width: 16, depth: 19, height: 4,
     floorCount: 1,
     colors: { floor: { r: 0.3, g: 0.28, b: 0.25 }, wall: { r: 0.35, g: 0.32, b: 0.28 }, ceiling: { r: 0.25, g: 0.23, b: 0.2 } },
     rooms: [
@@ -1778,7 +1778,7 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
     category: 'residential',
     buildingType: 'apartmentcomplex',
     matchBusinessTypes: ['apartmentcomplex', 'apartment_complex'],
-    width: 22, depth: 18, height: 4.5,
+    width: 22, depth: 24, height: 4.5,
     floorCount: 3,
     colors: { floor: STONE_GRAY, wall: WARM_WALL, ceiling: { r: 0.55, g: 0.52, b: 0.48 } },
     rooms: [
@@ -1802,7 +1802,7 @@ export const INTERIOR_LAYOUT_TEMPLATES: InteriorLayoutTemplate[] = [
     category: 'commercial_retail',
     buildingType: 'herbshop',
     matchBusinessTypes: ['herbshop', 'herb_shop', 'HerbShop'],
-    width: 14, depth: 12, height: 4,
+    width: 14, depth: 17, height: 4,
     floorCount: 1,
     colors: { floor: MEDIUM_WOOD, wall: WARM_WALL, ceiling: DARK_CEILING },
     rooms: [

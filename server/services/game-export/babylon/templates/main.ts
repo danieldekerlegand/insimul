@@ -5,6 +5,21 @@
 
 import '@babylonjs/loaders';
 import '@babylonjs/core/Helpers/sceneHelpers';
+import { Tools } from '@babylonjs/core';
+
+// Ensure all asset paths resolve relative to dist/index.html.
+// Some paths from IR data lack the ./ prefix and resolve against the app CWD.
+const originalPreprocess = Tools.PreprocessUrl;
+Tools.PreprocessUrl = (url: string): string => {
+  let resolved = originalPreprocess(url);
+  if (resolved.startsWith('/assets/')) {
+    resolved = '.' + resolved;
+  }
+  if (resolved.startsWith('assets/')) {
+    resolved = './' + resolved;
+  }
+  return resolved;
+};
 
 // Import the actual BabylonGame class
 import { BabylonGame } from './index';

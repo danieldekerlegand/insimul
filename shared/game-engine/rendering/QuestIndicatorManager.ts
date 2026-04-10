@@ -2,14 +2,15 @@
  * Quest Indicator Manager
  * 
  * Displays visual indicators above NPCs to show quest status:
- * - ! (yellow) - NPC has available quest
- * - ? (yellow) - Quest in progress (assigned by this NPC)
+ * - ? (yellow) - NPC has available quest
+ * - ! (yellow) - NPC is a quest objective target
+ * - ? (silver) - Quest in progress (assigned by this NPC)
  * - ✓ (green) - Quest ready to turn in
  */
 
 import { Scene, Mesh, MeshBuilder, StandardMaterial, Color3, Vector3, Animation, DynamicTexture } from '@babylonjs/core';
 
-export type QuestIndicatorType = 'available' | 'in_progress' | 'turn_in' | null;
+export type QuestIndicatorType = 'available' | 'objective' | 'in_progress' | 'turn_in' | null;
 
 interface QuestIndicator {
   mesh: Mesh;
@@ -108,7 +109,7 @@ export class QuestIndicatorManager {
     // Priority 2: NPC is the active objective target (assessment, any_npc) — gold !
     // This MUST come before radiant quest check to suppress the radiant indicator
     const npcFullName = [npc.firstName, npc.lastName].filter(Boolean).join(' ');
-    if (this._activeObjectiveNpcId && (this._activeObjectiveNpcId === resolvedId || this._activeObjectiveNpcId === npc.id)) return 'available';
+    if (this._activeObjectiveNpcId && (this._activeObjectiveNpcId === resolvedId || this._activeObjectiveNpcId === npc.id)) return 'objective';
     const isObjectiveTarget = quests.some(q => {
       if (q.status !== 'active') return false;
       const objectives = (q as any).objectives;
@@ -126,7 +127,7 @@ export class QuestIndicatorManager {
       if (npcLocMatch && npcLocMatch[1] === npcFullName) return true;
       return false;
     });
-    if (isObjectiveTarget) return 'available';
+    if (isObjectiveTarget) return 'objective';
 
     // Priority 3: NPC has an active quest they assigned (player accepted) — silver ?
     const activeQuest = quests.find(q =>
@@ -347,6 +348,13 @@ export class QuestIndicatorManager {
   } | null {
     switch (type) {
       case 'available':
+        return {
+          symbol: '?',
+          bgColor: 'rgba(255, 215, 0, 0.9)', // Gold — matches minimap #FFD700
+          borderColor: '#cc9900',
+          textColor: '#000000'
+        };
+      case 'objective':
         return {
           symbol: '!',
           bgColor: 'rgba(255, 215, 0, 0.9)', // Gold — matches minimap #FFD700

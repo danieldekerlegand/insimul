@@ -42,8 +42,8 @@ const CAMERA_CONFIGS: Record<CameraMode, CameraModeConfig> = {
   first_person: {
     mode: 'first_person',
     radius: 0.1,
-    beta: Math.PI / 2.2, // Looking slightly down
-    fov: 1.2, // Wider FOV for first person
+    beta: Math.PI / 2, // Level horizon
+    fov: 0.9, // Natural FOV (~52 degrees)
     lowerRadiusLimit: 0.1,
     upperRadiusLimit: 0.5,
     lowerBetaLimit: 0.1,
@@ -139,6 +139,12 @@ export class CameraManager {
   
   // Callbacks
   private onModeChanged?: (mode: CameraMode) => void;
+
+  // Free mouse look state (pointer lock)
+  private freeLookEnabled = false;
+  private freeLookHandler: ((e: MouseEvent) => void) | null = null;
+  private pointerLockChangeHandler: (() => void) | null = null;
+  private skipNextMovement = false; // Skip first movement after lock to avoid position spike
 
   constructor(scene: Scene, camera: ArcRotateCamera) {
     this.scene = scene;
@@ -246,9 +252,13 @@ export class CameraManager {
       (this.characterController as any).setMovementPlane?.(config.movementPlane);
     }
 
+    // First-person: free mouse look (no click required to rotate camera)
+    // Other modes: restore default click-to-drag
+    this.setFreeLook(mode === 'first_person');
+
     // Fire callback
     this.onModeChanged?.(mode);
-    
+
   }
 
   /**
@@ -279,6 +289,116 @@ export class CameraManager {
       this.camera.alpha = config.alpha;
     }
   }
+
+  /**
+   * Enable or disable free mouse look via pointer lock.
+   * When enabled, clicking the canvas captures the mouse (pointer lock).
+   * Mouse movement rotates the camera without needing to hold a button.
+   * Pressing Escape releases pointer lock (browser standard behavior).
+   */
+  private setFreeLook(enabled: boolean): void {
+    if (enabled === this.freeLookEnabled) return;
+    this.freeLookEnabled = enabled;
+
+    const canvas = this.scene.getEngine().getRenderingCanvas();
+    if (!canvas) return;
+
+    if (enabled) {
+      // Detach default pointer rotation (requires mouse button press)
+      this.camera.inputs.removeByType('ArcRotateCameraPointersInput');
+
+      // Mouse move handler — uses movementX/Y from pointer lock
+      const sensitivity = 0.005;
+      this.freeLookHandler = (e: MouseEvent) => {
+        if (!document.pointerLockElement) return;
+        // Skip the first movement event after lock engages — browsers can report
+        // a large delta spike from the cursor's previous absolute position
+        if (this.skipNextMovement) {
+          this.skipNextMovement = false;
+          return;
+        }
+        // Clamp individual frame deltas to prevent wild jumps
+        const mx = Math.max(-50, Math.min(50, e.movementX));
+        const my = Math.max(-50, Math.min(50, e.movementY));
+        this.camera.alpha -= mx * sensitivity;
+        this.camera.beta -= my * sensitivity;
+        const config = CAMERA_CONFIGS[this.currentMode];
+        this.camera.beta = Math.max(config.lowerBetaLimit, Math.min(config.upperBetaLimit, this.camera.beta));
+      };
+      document.addEventListener('mousemove', this.freeLookHandler);
+
+      // Request pointer lock on canvas click (not immediately — requires user gesture)
+      canvas.addEventListener('click', this.requestPointerLock);
+
+      // Track pointer lock state changes (Escape releases it)
+      this.pointerLockChangeHandler = () => {
+        this.onPointerLockChanged?.(!document.pointerLockElement);
+      };
+      document.addEventListener('pointerlockchange', this.pointerLockChangeHandler);
+    } else {
+      // Clean up
+      if (this.freeLookHandler) {
+        document.removeEventListener('mousemove', this.freeLookHandler);
+        this.freeLookHandler = null;
+      }
+      if (this.pointerLockChangeHandler) {
+        document.removeEventListener('pointerlockchange', this.pointerLockChangeHandler);
+        this.pointerLockChangeHandler = null;
+      }
+      canvas.removeEventListener('click', this.requestPointerLock);
+
+      // Exit pointer lock if active
+      if (document.pointerLockElement) {
+        document.exitPointerLock();
+      }
+
+      // Reattach default pointer input
+      this.camera.inputs.addPointers();
+    }
+  }
+
+  /** Release pointer lock temporarily (e.g., when a GUI panel opens). */
+  public releasePointerLock(): void {
+    if (document.pointerLockElement) {
+      document.exitPointerLock();
+    }
+  }
+
+  /** Re-engage pointer lock (e.g., when a GUI panel closes). */
+  public engagePointerLock(): void {
+    // Can't request without user gesture — the next canvas click will re-engage
+    // via the click handler already registered.
+  }
+
+  /** Callback fired when pointer lock state changes. Argument is true if cursor is now free. */
+  public onPointerLockChanged: ((cursorFree: boolean) => void) | null = null;
+
+  private requestPointerLock = (e: MouseEvent): void => {
+    const canvas = this.scene.getEngine().getRenderingCanvas();
+    if (!canvas || document.pointerLockElement || !this.freeLookEnabled) return;
+
+    // Don't re-engage pointer lock if the click hit an interactable object —
+    // let the game's click handler process it as an NPC/door/container interaction.
+    const pickResult = this.scene.pick(e.offsetX, e.offsetY);
+    if (pickResult?.hit && pickResult.pickedMesh) {
+      let mesh = pickResult.pickedMesh;
+      // Walk up parent chain to check for interactable metadata
+      for (let i = 0; i < 20 && mesh.parent; i++) {
+        if (mesh.metadata?.npcId || mesh.metadata?.buildingId || mesh.metadata?.isContainer || mesh.metadata?.interiorExit) break;
+        mesh = mesh.parent as any;
+      }
+      const meta = mesh.metadata;
+      if (meta?.npcId || meta?.buildingId || meta?.isContainer || meta?.interiorExit) {
+        // This click is an interaction — don't lock, let click handlers process it
+        return;
+      }
+    }
+
+    try {
+      this.skipNextMovement = true;
+      canvas.requestPointerLock();
+    } catch { /* ignore — requires user gesture */ }
+  };
 
   /**
    * Animate camera to new config

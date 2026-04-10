@@ -891,7 +891,12 @@ export class ProceduralNatureGenerator {
 
     // Filter out placements on roads, sidewalks, or buildings.
     // Check center + footprint edges to prevent large rocks from spilling into streets.
-    const rockFootprint = this.rockOverrideTemplate ? 1.5 : 3; // asset rocks are smaller than procedural
+    // Multi-rock set models (rock_moss_set etc.) span ~6 units, so use a larger footprint.
+    const hasMultiRockSets = this.rockOverrideTemplate
+      ? (this.rockOverrideTemplate.getChildMeshes().length > 1
+         || this.rockVariantTemplates.some(v => v.getChildMeshes().length > 1))
+      : false;
+    const rockFootprint = !this.rockOverrideTemplate ? 3 : hasMultiRockSets ? 4 : 1.5;
     const filteredRockPlacements = this.isPointBlocked
       ? rockPlacements.filter(p => {
           const blocked = this.isPointBlocked!;
@@ -959,18 +964,51 @@ export class ProceduralNatureGenerator {
           this.rockMeshes.push(rock);
         }
 
-        // Invisible collision box at rock position
-        const rockCollider = MeshBuilder.CreateBox(
-          `rock_collider_${i}`,
-          { width: scaleVariation, height: scaleVariation * 0.7, depth: scaleVariation },
-          this.scene
-        );
-        rockCollider.position = new Vector3(x, baseHeight + scaleVariation * 0.35, z);
-        rockCollider.isVisible = false;
-        rockCollider.isPickable = false;
-        rockCollider.checkCollisions = true;
-        rockCollider.freezeWorldMatrix();
-        this.rockMeshes.push(rockCollider);
+        // Add invisible collision boxes — one per child mesh for multi-rock sets,
+        // or a single box at center for single-rock models
+        const childMeshes = chosenTemplate.getChildMeshes();
+        if (childMeshes.length > 1) {
+          // Multi-rock set: add a collider for each child rock at its world position
+          const rotY = Math.random() * Math.PI * 2; // match the visual rotation
+          const cosR = Math.cos(rotY), sinR = Math.sin(rotY);
+          for (let ci = 0; ci < childMeshes.length; ci++) {
+            const child = childMeshes[ci];
+            child.computeWorldMatrix(true);
+            const bi = child.getBoundingInfo();
+            const childSize = bi.boundingBox.maximumWorld.subtract(bi.boundingBox.minimumWorld);
+            const childCenter = bi.boundingBox.centerWorld;
+            // Transform child's local offset by the parent's scale and rotation
+            const localX = childCenter.x * xzScale;
+            const localZ = childCenter.z * xzScale;
+            const worldX = x + localX * cosR - localZ * sinR;
+            const worldZ = z + localX * sinR + localZ * cosR;
+            const colliderSize = Math.max(0.5, Math.max(childSize.x, childSize.z) * xzScale);
+            const colliderHeight = Math.max(0.3, childSize.y * yScale);
+            const rockCollider = MeshBuilder.CreateBox(
+              `rock_collider_${i}_${ci}`,
+              { width: colliderSize, height: colliderHeight, depth: colliderSize },
+              this.scene
+            );
+            rockCollider.position = new Vector3(worldX, baseHeight + colliderHeight / 2, worldZ);
+            rockCollider.isVisible = false;
+            rockCollider.isPickable = false;
+            rockCollider.checkCollisions = true;
+            rockCollider.freezeWorldMatrix();
+            this.rockMeshes.push(rockCollider);
+          }
+        } else {
+          const rockCollider = MeshBuilder.CreateBox(
+            `rock_collider_${i}`,
+            { width: scaleVariation, height: scaleVariation * 0.7, depth: scaleVariation },
+            this.scene
+          );
+          rockCollider.position = new Vector3(x, baseHeight + scaleVariation * 0.35, z);
+          rockCollider.isVisible = false;
+          rockCollider.isPickable = false;
+          rockCollider.checkCollisions = true;
+          rockCollider.freezeWorldMatrix();
+          this.rockMeshes.push(rockCollider);
+        }
       }
       return;
     }

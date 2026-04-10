@@ -34,7 +34,7 @@ export const KEY_BUILDING_INTERACT = 'Enter';
 export const KEY_ATTACK = 'KeyF';
 
 /** Target nearest enemy */
-export const KEY_TARGET_ENEMY = 'KeyT';
+export const KEY_TARGET_ENEMY = 'KeyR';
 
 /** Toggle vocabulary/grammar panel */
 export const KEY_VOCABULARY_PANEL = 'KeyV';
@@ -58,7 +58,7 @@ export const KEY_TOGGLE_VR = 'KeyV'; // Shift+V
 export const KEY_FULLSCREEN_MAP = 'Tab';
 
 /** Push-to-talk: hold to record speech to NPC */
-export const KEY_PUSH_TO_TALK = 'KeyR';
+export const KEY_PUSH_TO_TALK = 'KeyT';
 
 /** Examine nearest object (shows target-language label) */
 export const KEY_EXAMINE_OBJECT = 'KeyX';

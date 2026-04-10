@@ -97,6 +97,8 @@ export interface MetaIR {
   selectedAssetCollectionId?: string | null;
   /** Full 3D configuration from the asset collection (building presets, model mappings, textures) */
   world3DConfig?: Record<string, any> | null;
+  /** Camera perspective: first_person, third_person, isometric, etc. */
+  cameraPerspective?: string | null;
   /** Map of MongoDB asset IDs → export file paths for offline resolution */
   assetIdToPath?: Record<string, string>;
 }

@@ -467,7 +467,6 @@ export class ContextualActionMenu {
 
       switch (e.code) {
         case 'Escape':
-        case 'KeyQ':
           e.preventDefault();
           e.stopPropagation();
           this.hide();

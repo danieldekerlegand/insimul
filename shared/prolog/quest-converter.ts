@@ -13,6 +13,8 @@
  *   quest_complete(Player, QuestId) :- <completion criteria check>.
  */
 
+import { getDefaultRequiredCount, OBJECTIVE_TYPE_DEFAULTS } from '../quest-objective-types.js';
+
 // ── Types ───────────────────────────────────────────────────────────────────
 
 interface QuestBranchChoice {
@@ -694,7 +696,7 @@ function convertObjective(obj: any, index: number, errors: string[]): string | n
 
   if (type === 'reputation' || type === 'gain_reputation') {
     const faction = obj.faction || obj.target || '';
-    const amount = obj.amount || obj.required || 100;
+    const amount = obj.amount || obj.required || OBJECTIVE_TYPE_DEFAULTS['gain_reputation']?.reputationRequired || 100;
     return `gain_reputation(${sanitizeAtom(faction)}, ${amount})`;
   }
 
@@ -739,7 +741,7 @@ function convertObjective(obj: any, index: number, errors: string[]): string | n
 
   if (type === 'use_vocabulary') {
     const words = obj.targetWords || obj.words || [];
-    const count = obj.requiredCount || words.length || 1;
+    const count = obj.requiredCount || words.length || getDefaultRequiredCount('use_vocabulary');
     if (words.length > 0) {
       return `learn_words([${words.map((w: string) => `'${escapeString(w)}'`).join(', ')}])`;
     }
@@ -757,12 +759,15 @@ function convertObjective(obj: any, index: number, errors: string[]): string | n
   }
   if (type.startsWith('arrival_') || type.startsWith('departure_') || type.startsWith('periodic_')) {
     const trigger = obj.completionTrigger || type;
-    return `assessment_phase('${escapeString(type)}', '${escapeString(trigger)}')`;
+    const count = obj.requiredCount || obj.count || getDefaultRequiredCount(type);
+    const minWords = obj.minWordCount || OBJECTIVE_TYPE_DEFAULTS[type]?.minWordCount;
+    const extras = minWords ? `, ${minWords}` : '';
+    return `assessment_phase('${escapeString(type)}', '${escapeString(trigger)}', ${count}${extras})`;
   }
 
   // ── Language skill objectives ───────────────────────────────────────────
   if (type === 'collect_vocabulary') {
-    const count = obj.requiredCount || obj.count || 1;
+    const count = obj.requiredCount || obj.count || getDefaultRequiredCount('collect_vocabulary');
     return `collect_vocabulary(${count})`;
   }
   if (type === 'identify_object' || type === 'point_and_name') {
@@ -782,19 +787,19 @@ function convertObjective(obj: any, index: number, errors: string[]): string | n
     return `write_response(${count})`;
   }
   if (type === 'listening_comprehension') {
-    const count = obj.requiredCount || obj.count || 1;
+    const count = obj.requiredCount || obj.count || getDefaultRequiredCount('listening_comprehension');
     return `listening_comprehension(${count})`;
   }
   if (type === 'listen_and_repeat') {
-    const count = obj.requiredCount || obj.count || 1;
+    const count = obj.requiredCount || obj.count || getDefaultRequiredCount('listen_and_repeat');
     return `listen_and_repeat(${count})`;
   }
   if (type === 'translation_challenge') {
-    const count = obj.requiredCount || obj.count || 1;
+    const count = obj.requiredCount || obj.count || getDefaultRequiredCount('translation_challenge');
     return `translation_challenge(${count})`;
   }
   if (type === 'pronunciation_check') {
-    const count = obj.requiredCount || obj.count || 1;
+    const count = obj.requiredCount || obj.count || getDefaultRequiredCount('pronunciation_check');
     return `pronunciation_check(${count})`;
   }
   if (type === 'introduce_self') {
@@ -811,7 +816,7 @@ function convertObjective(obj: any, index: number, errors: string[]): string | n
     return `find_text(${count})`;
   }
   if (type === 'comprehension_quiz') {
-    const count = obj.requiredCorrect || obj.requiredCount || 1;
+    const count = obj.requiredCorrect || obj.requiredCount || getDefaultRequiredCount('comprehension_quiz');
     return `comprehension_quiz(${count})`;
   }
   if (type === 'collect_clue') {
@@ -843,8 +848,8 @@ function convertObjective(obj: any, index: number, errors: string[]): string | n
     return npc ? `give_gift('${escapeString(npc)}')` : `give_gift(any)`;
   }
   if (type === 'build_friendship') {
-    const count = obj.requiredCount || obj.count || 1;
-    return `build_friendship(${count})`;
+    const strength = obj.requiredStrength ?? OBJECTIVE_TYPE_DEFAULTS['build_friendship']?.requiredStrength ?? 0.5;
+    return `build_friendship(${strength})`;
   }
   if (type === 'photograph' || type === 'photograph_subject') {
     const subject = obj.targetSubject || '';
@@ -881,7 +886,7 @@ function convertObjective(obj: any, index: number, errors: string[]): string | n
     return `conversation_activities(${count})`;
   }
   if (type === 'grammar') {
-    const count = obj.requiredCount || obj.required || 1;
+    const count = obj.requiredCount || obj.required || getDefaultRequiredCount('grammar');
     return `grammar_activities(${count})`;
   }
 
@@ -927,8 +932,9 @@ function convertObjective(obj: any, index: number, errors: string[]): string | n
 
   // ── Observation objectives ────────────────────────────────────────────
   if (type === 'observe_activity') {
-    const count = obj.requiredCount || obj.count || 1;
-    return `observe_activity(${count})`;
+    const count = obj.requiredCount || obj.count || getDefaultRequiredCount('observe_activity');
+    const duration = obj.observeDurationRequired || OBJECTIVE_TYPE_DEFAULTS['observe_activity']?.observeDurationSeconds || 5;
+    return `observe_activity(${count}, ${duration})`;
   }
 
   // ── Description-based recovery ─────────────────────────────────────────

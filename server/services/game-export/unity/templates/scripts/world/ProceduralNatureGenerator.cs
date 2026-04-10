@@ -456,6 +456,11 @@ namespace Insimul.World
                 var mr = go.AddComponent<MeshRenderer>();
                 mr.sharedMaterial = mat;
 
+                // Collision box sized to the rock's footprint (larger rocks get larger colliders)
+                var col = go.AddComponent<BoxCollider>();
+                col.size = new Vector3(1f, 0.7f, 1f);
+                col.center = new Vector3(0f, 0.35f, 0f);
+
                 AddLODGroup(go, 50f, 80f);
             }
         }

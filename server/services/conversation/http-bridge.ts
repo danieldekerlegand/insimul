@@ -52,7 +52,7 @@ export function classifyMessageComplexity(
   historyLength: number,
 ): 'simple' | 'complex' {
   const wordCount = text.trim().split(/\s+/).length;
-  const hasQuestion = text.includes('?');
+  const hasQuestion = text.includes('?') || /\b(quel|quelle|quels|quelles|qui|que|quoi|où|comment|pourquoi|combien|quand|est-ce que)\b/i.test(text);
   const questKeywords = /quest|mission|task|objective|help|explain|tell me|how|why|what|where|who|history/i;
   const hasQuestKeyword = questKeywords.test(text);
 

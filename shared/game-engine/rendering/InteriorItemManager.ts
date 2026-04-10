@@ -35,6 +35,34 @@ interface ItemPlacement {
 }
 
 /**
+ * Maps business types to item types/roles that should appear in them.
+ * Used when items don't have explicit businessId assignments.
+ */
+const BUSINESS_ITEM_TYPES: Record<string, string[]> = {
+  tavern: ['drink', 'food', 'mug', 'bottle', 'ale', 'wine', 'bread'],
+  bar: ['drink', 'bottle', 'mug', 'ale', 'wine', 'glass'],
+  restaurant: ['food', 'drink', 'plate', 'bowl', 'bread', 'wine'],
+  bakery: ['food', 'bread', 'pastry', 'cake', 'flour', 'pie'],
+  shop: ['tool', 'material', 'collectible', 'goods', 'wares'],
+  grocerystore: ['food', 'fruit', 'vegetable', 'bread', 'cheese', 'produce'],
+  grocery: ['food', 'fruit', 'vegetable', 'bread', 'cheese', 'produce'],
+  blacksmith: ['weapon', 'armor', 'tool', 'metal', 'sword', 'shield', 'ingot'],
+  armory: ['weapon', 'armor', 'sword', 'shield', 'bow'],
+  library: ['book', 'scroll', 'tome', 'document', 'manuscript'],
+  bookshop: ['book', 'scroll', 'tome', 'document'],
+  apothecary: ['potion', 'herb', 'medicine', 'consumable', 'remedy'],
+  herbalist: ['herb', 'potion', 'plant', 'medicine', 'consumable'],
+  tailor: ['material', 'cloth', 'fabric', 'clothing'],
+  jeweler: ['gem', 'ring', 'necklace', 'collectible', 'jewelry'],
+  general: ['tool', 'food', 'material', 'consumable', 'goods'],
+  inn: ['food', 'drink', 'key', 'bread', 'ale'],
+  church: ['book', 'scroll', 'candle', 'document'],
+  school: ['book', 'scroll', 'document', 'ink', 'quill'],
+  hospital: ['medicine', 'potion', 'herb', 'consumable', 'bandage'],
+  residence: ['food', 'drink', 'book', 'tool', 'key'],
+};
+
+/**
  * Maps business/building types to placement positions for items within interiors.
  * Positions are relative to the interior center. Items are placed on surfaces
  * (counters, shelves, tables) that match the furniture layout.
@@ -427,7 +455,10 @@ export class InteriorItemManager {
   ): Mesh[] {
     this.clearItems();
 
-    const items = this.getItemsForBuilding(buildingId, worldItems);
+    const items = this.getItemsForBuilding(
+      buildingId, worldItems,
+      interior.businessType || interior.buildingType,
+    );
     if (items.length === 0) return [];
 
     const placements = this.getPlacementsForType(
@@ -462,16 +493,70 @@ export class InteriorItemManager {
     return [...this.spawnedMeshes];
   }
 
-  /** Filter world items to those placed in the given building. */
+  /**
+   * Filter world items to those that belong in the given building.
+   * First checks explicit assignment (businessId/residenceId), then falls
+   * back to matching item types against the business type so buildings
+   * are populated even without pre-assigned item→building relationships.
+   */
   public getItemsForBuilding(
     buildingId: string,
     worldItems: InteriorItemData[],
+    businessType?: string,
   ): InteriorItemData[] {
-    return worldItems.filter((item) => {
+    // 1. Explicitly assigned items always included
+    const explicit = worldItems.filter((item) => {
       const meta = item.metadata;
       if (!meta) return false;
       return meta.businessId === buildingId || meta.residenceId === buildingId;
     });
+    if (explicit.length > 0) {
+      console.log(`[InteriorItems] ${buildingId}: ${explicit.length} explicitly assigned items`);
+      return explicit;
+    }
+
+    // 2. Match items by type/role to business type
+    if (!businessType) {
+      console.log(`[InteriorItems] ${buildingId}: no businessType provided, skipping type matching`);
+      return [];
+    }
+    const bt = businessType.toLowerCase();
+    const matchingTypes = BUSINESS_ITEM_TYPES[bt];
+    if (!matchingTypes) {
+      console.log(`[InteriorItems] ${buildingId}: businessType="${bt}" not found in BUSINESS_ITEM_TYPES (keys: ${Object.keys(BUSINESS_ITEM_TYPES).join(', ')})`);
+      return [];
+    }
+
+    const candidates = worldItems.filter((item) => {
+      const type = (item.itemType || '').toLowerCase();
+      const role = (item.objectRole || '').toLowerCase();
+      return matchingTypes.some(t => type.includes(t) || role.includes(t));
+    });
+    console.log(`[InteriorItems] ${buildingId}: bt="${bt}", matchingTypes=[${matchingTypes.join(',')}], worldItems=${worldItems.length}, candidates=${candidates.length}`);
+
+    // Deterministic selection: use buildingId hash to pick a stable subset
+    // so the same building always shows the same items across visits
+    const maxItems = 6;
+    if (candidates.length <= maxItems) return candidates;
+    const hash = this.hashString(buildingId);
+    const selected: InteriorItemData[] = [];
+    for (let i = 0; i < maxItems; i++) {
+      const idx = (hash + i * 7) % candidates.length;
+      if (!selected.includes(candidates[idx])) {
+        selected.push(candidates[idx]);
+      }
+    }
+    return selected;
+  }
+
+  /** Simple string hash for deterministic item selection. */
+  private hashString(str: string): number {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      hash = ((hash << 5) - hash) + str.charCodeAt(i);
+      hash |= 0;
+    }
+    return Math.abs(hash);
   }
 
   /** Get placement positions for a building/business type. */

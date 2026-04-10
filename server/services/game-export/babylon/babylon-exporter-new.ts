@@ -250,21 +250,28 @@ export async function exportBabylonProject(
     { path: 'public/data/asset-manifest.json', content: manifestJson },
   ];
 
-  // Rewrite asset paths for export: absolute → relative, remap to bundled locations
+  // Rewrite asset paths for export: absolute → relative in ALL source files.
+  // In Electron (file:// protocol), absolute /assets/ paths resolve to file system root,
+  // not the app directory. Convert them all to relative ./assets/.
   for (const file of allFiles) {
+    if (typeof file.content !== 'string') continue;
+    if (!file.path.endsWith('.ts') && !file.path.endsWith('.tsx') && !file.path.endsWith('.json') && !file.path.endsWith('.js')) continue;
+    if (!file.content.includes('/assets/')) continue;
+
+    let c = file.content;
+    // Specific remaps for known relocated assets
     if (file.path.endsWith('asset-paths.ts')) {
       console.log(`[Export] Rewriting asset paths in ${file.path}`);
-      let c = file.content;
       c = c.replace(/['"]\/assets\/textures\/environment\/ground\.jpg['"]/g, "'./assets/ground/ground.jpg'");
       c = c.replace(/['"]\/assets\/textures\/environment\/ground-normal\.png['"]/g, "'./assets/ground/ground-normal.png'");
       c = c.replace(/['"]\/assets\/textures\/environment\/ground_heightMap\.png['"]/g, "'./assets/ground/ground_heightMap.png'");
       c = c.replace(/['"]\/assets\/models\/characters\/legacy\/Vincent-frontFacing\.babylon['"]/g, "'./assets/player/Vincent-frontFacing.babylon'");
       c = c.replace(/['"]\/assets\/models\/characters\/legacy\/starterAvatars\.babylon['"]/g, "'./assets/npc/starterAvatars.babylon'");
       c = c.replace(/['"]\/assets\/audio\/effects\/footstep_carpet_000\.ogg['"]/g, "'./assets/audio/footstep/stone.mp3'");
-      // Make all remaining absolute /assets/ paths relative
-      c = c.replace(/(["'])\/assets\//g, "$1./assets/");
-      file.content = c;
     }
+    // Convert all remaining absolute /assets/ paths to relative ./assets/
+    c = c.replace(/(["'`])\/assets\//g, '$1./assets/');
+    if (c !== file.content) file.content = c;
   }
   
   // Compute the project folder name for the ZIP archive
@@ -404,4 +411,119 @@ export async function exportBabylonProjectAsZip(
   options: BabylonExportOptions
 ): Promise<Buffer> {
   return exportBabylonProject(worldId, options);
+}
+
+/**
+ * Export the project to a directory on disk, writing files directly
+ * without creating an in-memory ZIP (avoids the 2GB buffer limit).
+ * Returns the output directory path.
+ */
+export async function exportBabylonProjectToDirectory(
+  worldId: string,
+  options: BabylonExportOptions,
+  outputDir?: string
+): Promise<string> {
+  console.log('[Export] Generating project files for directory export...');
+  const ir = await generateWorldIR(worldId, 'babylon', { aiProvider: options.aiProvider });
+
+  const dataFiles = generateDataFiles(ir);
+  const sceneFiles = generateSceneFiles(ir);
+  const gameFileCopier = new GameFileCopier(get3DGamePath(), '/tmp/export');
+  const gameFiles = await gameFileCopier.copyAllFiles();
+
+  const libDir = path.join(get3DGamePath(), '..', '..', 'lib');
+  const libFiles: GeneratedFile[] = [];
+  if (fsSync.existsSync(libDir)) {
+    for (const entry of fsSync.readdirSync(libDir)) {
+      if (entry.endsWith('.ts') && !entry.endsWith('.d.ts') && !entry.endsWith('.test.ts')) {
+        libFiles.push({ path: `src/lib/${entry}`, content: fsSync.readFileSync(path.join(libDir, entry), 'utf-8') });
+      }
+    }
+  }
+
+  const sharedTypesFiles = await copySharedTypes();
+  const projectFiles = generateProjectFiles(ir, options);
+  const mainEntryFile: GeneratedFile = { path: 'src/main.ts', content: generateMainEntry(ir, options.apiUrl) };
+
+  // Assets
+  const engine: TargetEngine = 'babylon';
+  const selectedCollectionId = (ir.meta as any).selectedAssetCollectionId;
+  let assetBundle = selectedCollectionId
+    ? await bundleAssetsFromCollection(selectedCollectionId, ir.meta.worldId)
+    : await bundleCoreAssets(engine);
+  if (assetBundle.assets.length === 0) assetBundle = await bundleCoreAssets(engine);
+
+  const manifestJson = generateAssetManifestJson(assetBundle.manifest);
+
+  const telemetryFiles: GeneratedFile[] = [{
+    path: 'src/telemetry-integration.ts',
+    content: generateBabylonTelemetryIntegration({
+      apiEndpoint: options.telemetry?.serverUrl ?? '',
+      apiKey: options.telemetry?.apiKey ?? '',
+      batchSize: options.telemetry?.batchSize ?? TELEMETRY_DEFAULTS.batchSize,
+      flushIntervalMs: options.telemetry?.flushIntervalMs ?? TELEMETRY_DEFAULTS.flushIntervalMs,
+    }),
+  }];
+
+  let aiBundleResult: AIBundleResult | null = null;
+  if (options.aiProvider === 'local') {
+    aiBundleResult = await bundleAIModels('babylon');
+  }
+
+  const pluginFiles: GeneratedFile[] = bundleBabylonPlugin(ir).map(f => ({ path: f.path, content: f.content }));
+
+  const allFiles: GeneratedFile[] = [
+    ...dataFiles, ...sceneFiles, ...gameFiles, ...libFiles,
+    ...sharedTypesFiles, ...telemetryFiles, ...pluginFiles,
+    mainEntryFile, ...projectFiles,
+    { path: 'public/data/asset-manifest.json', content: manifestJson },
+  ];
+
+  // Rewrite asset paths: absolute /assets/ → relative ./assets/ in ALL source files
+  for (const file of allFiles) {
+    if (typeof file.content !== 'string') continue;
+    if (!file.path.endsWith('.ts') && !file.path.endsWith('.tsx') && !file.path.endsWith('.json') && !file.path.endsWith('.js')) continue;
+    if (!(file.content as string).includes('/assets/')) continue;
+    let c = file.content as string;
+    if (file.path.endsWith('asset-paths.ts')) {
+      c = c.replace(/['"]\/assets\/textures\/environment\/ground\.jpg['"]/g, "'./assets/ground/ground.jpg'");
+      c = c.replace(/['"]\/assets\/textures\/environment\/ground-normal\.png['"]/g, "'./assets/ground/ground-normal.png'");
+      c = c.replace(/['"]\/assets\/textures\/environment\/ground_heightMap\.png['"]/g, "'./assets/ground/ground_heightMap.png'");
+      c = c.replace(/['"]\/assets\/models\/characters\/legacy\/Vincent-frontFacing\.babylon['"]/g, "'./assets/player/Vincent-frontFacing.babylon'");
+      c = c.replace(/['"]\/assets\/models\/characters\/legacy\/starterAvatars\.babylon['"]/g, "'./assets/npc/starterAvatars.babylon'");
+      c = c.replace(/['"]\/assets\/audio\/effects\/footstep_carpet_000\.ogg['"]/g, "'./assets/audio/footstep/stone.mp3'");
+    }
+    c = c.replace(/(["'`])\/assets\//g, '$1./assets/');
+    if (c !== file.content) file.content = c;
+  }
+
+  const projectName = buildExportName(ir.meta.worldName, 'Babylon', options.aiProvider, options.mode);
+  const destDir = outputDir || joinPath(process.cwd(), 'exports', projectName);
+
+  console.log(`[Export] Writing ${allFiles.length} source files to ${destDir}...`);
+  for (const file of allFiles) {
+    const filePath = joinPath(destDir, file.path);
+    mkdirSync(dirname(filePath), { recursive: true });
+    const content = typeof file.content === 'string' ? file.content : file.content;
+    writeFileSync(filePath, content);
+  }
+
+  console.log(`[Export] Writing ${assetBundle.assets.length} assets...`);
+  for (const asset of assetBundle.assets) {
+    const assetPath = joinPath(destDir, 'public', asset.exportPath);
+    mkdirSync(dirname(assetPath), { recursive: true });
+    writeFileSync(assetPath, asset.buffer);
+  }
+
+  if (aiBundleResult) {
+    console.log(`[Export] Writing ${aiBundleResult.assets.length} AI model files...`);
+    for (const asset of aiBundleResult.assets) {
+      const assetPath = joinPath(destDir, 'public', asset.exportPath);
+      mkdirSync(dirname(assetPath), { recursive: true });
+      writeFileSync(assetPath, asset.buffer);
+    }
+  }
+
+  console.log(`[Export] Directory export complete: ${destDir}`);
+  return destDir;
 }

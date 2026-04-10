@@ -14,7 +14,7 @@ namespace Insimul.World
         public float roadWidth = {{ROAD_WIDTH}}f;
 
         [Tooltip("Height offset above terrain to prevent z-fighting")]
-        public float roadElevation = 0.05f;
+        public float roadElevation = 0.5f;
 
         private Material _roadMaterial;
         private Material _sidewalkMaterial;
@@ -99,6 +99,8 @@ namespace Insimul.World
             var positions = new Vector3[data.Length];
             for (int i = 0; i < data.Length; i++)
             {
+                // Use the max height across center and both edges so the road
+                // surface clears any terrain bumps across its full width.
                 positions[i] = data[i].ToVector3() + Vector3.up * roadElevation;
             }
             return positions;

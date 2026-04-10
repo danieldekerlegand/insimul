@@ -169,6 +169,41 @@ function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
+/**
+ * Format a count description template like "Complete {n} conversation turn(s)"
+ * into the correct singular/plural form: "Complete 1 conversation turn" or "Complete 3 conversation turns".
+ * Also handles "(ies)" → "ies"/"y" patterns.
+ */
+function formatCountDescription(template: string, count: number): string {
+  const withCount = template.replace('{n}', String(count));
+  if (count === 1) {
+    return withCount.replace(/\(s\)/g, '').replace(/\(ies\)/g, 'y');
+  }
+  return withCount.replace(/\(s\)/g, 's').replace(/\(ies\)/g, 'ies');
+}
+
+/**
+ * Build an explicit description for assessment phase objectives.
+ */
+function buildExplicitDescription(phaseType: string, count: number, minWordCount?: number): string {
+  if (phaseType.includes('conversation') && count > 1) {
+    return `Have a conversation (at least ${count} turns)`;
+  }
+  if (phaseType.includes('writing') && minWordCount) {
+    return `Complete writing task (at least ${minWordCount} words)`;
+  }
+  if (phaseType.includes('initiate_conversation')) {
+    return 'Initiate a conversation with the marked NPC';
+  }
+  if (phaseType.includes('reading')) {
+    return 'Complete the reading comprehension exercise';
+  }
+  if (phaseType.includes('listening')) {
+    return 'Complete the listening comprehension exercise';
+  }
+  return capitalize(phaseType.replace(/_/g, ' '));
+}
+
 /** Convert a Prolog goal term to a human-readable description */
 function goalToDescription(functor: string, args: string[]): string {
   const labels: Record<string, string> = {
@@ -195,8 +230,19 @@ function goalToDescription(functor: string, args: string[]): string {
   const label = labels[functor] || capitalize(functor.replace(/_/g, ' '));
   if (args.length === 0) return label;
   const mainArg = args[0] === 'any' ? '' : ` ${args[0]}`;
-  const countArg = args.length > 1 && /^\d+$/.test(args[1]) ? ` (${args[1]})` : '';
-  return `${label}${mainArg}${countArg}`.trim();
+  if (args.length > 1 && /^\d+$/.test(args[1])) {
+    const count = parseInt(args[1]);
+    if (count > 1) {
+      // For quantity objectives, make the count explicit
+      if (functor === 'collect') return `Collect ${count} ${args[0]}`;
+      if (functor === 'defeat') return `Defeat ${count} ${args[0]}`;
+      if (functor === 'craft_item') return `Craft ${count} ${args[0]}`;
+      if (functor === 'gain_reputation') return `Gain ${count} reputation with ${args[0]}`;
+      if (functor === 'photograph') return `Photograph ${count} ${args[0]}`;
+      return `${label}${mainArg} (${count})`;
+    }
+  }
+  return `${label}${mainArg}`.trim();
 }
 
 /** Recursively unescape all string values in a parsed objective */
@@ -242,6 +288,8 @@ function parseObjectives(content: string): any[] {
   }
 
   // Parse quest_objective_location to attach location atoms to objectives
+  // Extracts structured fields (locationName, npcName) from Prolog terms like
+  // location('Notice Board') or npc('Philibert Sonnier')
   const locPattern = /quest_objective_location\(\s*\w+\s*,\s*(\d+)\s*,\s*(.*)\)\s*\./g;
   let locMatch;
   while ((locMatch = locPattern.exec(content)) !== null) {
@@ -250,6 +298,18 @@ function parseObjectives(content: string): any[] {
     const obj = objectives.find(o => o.id === `obj_${idx}`);
     if (obj) {
       obj.objectiveLocation = locAtom;
+      // Extract the inner name from location('Name') or npc('Name')
+      const innerMatch = locAtom.match(/^(location|npc)\(\s*'((?:[^'\\]|\\.)*)'\s*\)$/);
+      if (innerMatch) {
+        const locType = innerMatch[1];
+        const name = innerMatch[2].replace(/\\'/g, "'");
+        if (locType === 'location') {
+          obj.locationName = name;
+        } else if (locType === 'npc') {
+          if (!obj.npcName) obj.npcName = name;
+          if (!obj.npcId) obj.npcId = name;
+        }
+      }
     }
   }
 
@@ -328,7 +388,12 @@ function parseObjectiveGoal(goal: string): any | null {
   if (singleArgGoals[functor] && args.length >= 1) {
     const target = args[0];
     const count = args.length >= 2 ? (parseInt(args[1]) || 1) : 1;
-    const result: any = { type: singleArgGoals[functor], description: goalToDescription(functor, args), target, requiredCount: count, required: count };
+    let desc = goalToDescription(functor, args);
+    // Make talk_to descriptions explicit about turn requirements
+    if (functor === 'talk_to' && count > 1) {
+      desc = `Talk to ${target} (at least ${count} turns)`;
+    }
+    const result: any = { type: singleArgGoals[functor], description: desc, target, requiredCount: count, required: count };
     if (functor === 'talk_to') result.npcId = target;
     return result;
   }
@@ -338,29 +403,40 @@ function parseObjectiveGoal(goal: string): any | null {
     return { type: 'deliver_item', description: `Deliver ${args[0]} to ${args[1]}`, target: args[1], item: args[0], requiredCount: 1, required: 1 };
   }
 
-  // Count-only goals: functor(count)
+  // Count-only goals: functor(count) or functor(count, extraArg)
   const countGoals: Record<string, string> = {
-    conversation_turns: 'Complete conversation turns',
-    examine_object: 'Examine objects', read_sign: 'Read signs',
-    write_response: 'Write responses', listen_and_repeat: 'Listen and repeat phrases',
-    pronunciation_check: 'Complete pronunciation checks', identify_object: 'Identify objects',
-    order_food: 'Order food items', haggle_price: 'Haggle prices',
-    buy_item: 'Buy items', sell_item: 'Sell items',
-    ask_for_directions: 'Ask for directions', comprehension_quiz: 'Complete comprehension quizzes',
-    translation_challenge: 'Complete translation challenges', follow_directions: 'Follow directions',
-    listening_comprehension: 'Complete listening exercises', collect_vocabulary: 'Collect vocabulary words',
-    collect_clue: 'Collect clues', vocabulary_activities: 'Complete vocabulary activities',
-    conversation_activities: 'Complete conversation activities', grammar_activities: 'Complete grammar activities',
-    sustained_conversation: 'Sustain a conversation', master_words: 'Master vocabulary words',
-    learn_new_words: 'Learn new words', find_vocabulary_items: 'Find vocabulary items',
-    find_text: 'Find texts', combat_action: 'Perform combat actions',
-    observe_activity: 'Observe activities', build_friendship: 'Build friendships',
-    learn_words_count: 'Learn vocabulary words', survive: 'Survive',
-    visit_location: 'Visit locations',
+    conversation_turns: 'Complete {n} conversation turn(s)',
+    examine_object: 'Examine {n} object(s)', read_sign: 'Read {n} sign(s)',
+    write_response: 'Write {n} response(s)', listen_and_repeat: 'Listen and repeat {n} phrase(s)',
+    pronunciation_check: 'Complete {n} pronunciation check(s)', identify_object: 'Identify {n} object(s)',
+    order_food: 'Order {n} food item(s)', haggle_price: 'Haggle {n} price(s)',
+    buy_item: 'Buy {n} item(s)', sell_item: 'Sell {n} item(s)',
+    ask_for_directions: 'Ask for directions {n} time(s)', comprehension_quiz: 'Answer {n} quiz question(s) correctly',
+    translation_challenge: 'Complete {n} translation(s) correctly', follow_directions: 'Follow {n} direction(s)',
+    listening_comprehension: 'Answer {n} listening question(s) correctly', collect_vocabulary: 'Collect {n} vocabulary word(s)',
+    collect_clue: 'Collect {n} clue(s)', vocabulary_activities: 'Complete {n} vocabulary activit(ies)',
+    conversation_activities: 'Complete {n} conversation activit(ies)', grammar_activities: 'Demonstrate {n} grammar pattern(s)',
+    sustained_conversation: 'Sustain a conversation for {n} turn(s)', master_words: 'Master {n} vocabulary word(s)',
+    learn_new_words: 'Learn {n} new word(s)', find_vocabulary_items: 'Find {n} vocabulary item(s)',
+    find_text: 'Find {n} text(s)', combat_action: 'Perform {n} combat action(s)',
+    observe_activity: 'Observe {n} activit(ies)', build_friendship: 'Build friendship (reach {n} strength)',
+    learn_words_count: 'Learn {n} vocabulary word(s)', survive: 'Survive for {n} second(s)',
+    visit_location: 'Visit {n} location(s)',
   };
-  if (countGoals[functor] && args.length === 1 && /^\d+$/.test(args[0])) {
-    const count = parseInt(args[0]);
-    return { type: functor, description: `${countGoals[functor]} (${count})`, requiredCount: count, required: count };
+  if (countGoals[functor] && args.length >= 1 && /^\d+(\.\d+)?$/.test(args[0])) {
+    const count = functor === 'build_friendship' ? parseFloat(args[0]) : parseInt(args[0]);
+    const result: any = { type: functor, description: formatCountDescription(countGoals[functor], count), requiredCount: count, required: count };
+    // observe_activity(count, duration) — parse optional duration
+    if (functor === 'observe_activity' && args.length >= 2) {
+      result.observeDurationRequired = parseInt(args[1]) || 5;
+    }
+    // build_friendship stores the threshold differently
+    if (functor === 'build_friendship') {
+      result.requiredStrength = count;
+      result.requiredCount = 1;
+      result.required = 1;
+    }
+    return result;
   }
 
   // learn_words([word1, word2, ...])
@@ -369,15 +445,21 @@ function parseObjectiveGoal(goal: string): any | null {
     return { type: 'use_vocabulary', description: `Learn words: ${words.join(', ')}`, targetWords: words, requiredCount: words.length, required: words.length };
   }
 
-  // assessment_phase('phase_id', 'trigger')
+  // assessment_phase('phase_id', 'trigger', count) or assessment_phase('phase_id', 'trigger', count, minWordCount)
   if (functor === 'assessment_phase' && args.length >= 2) {
-    return {
-      type: args[0],
-      description: capitalize(args[0].replace(/_/g, ' ')),
-      assessmentPhaseId: args[0],
+    const count = args.length >= 3 ? (parseInt(args[2]) || 1) : 1;
+    const minWordCount = args.length >= 4 ? (parseInt(args[3]) || undefined) : undefined;
+    const phaseType = args[0];
+    const desc = buildExplicitDescription(phaseType, count, minWordCount);
+    const result: any = {
+      type: phaseType,
+      description: desc,
+      assessmentPhaseId: phaseType,
       completionTrigger: args[1],
-      requiredCount: 1, required: 1,
+      requiredCount: count, required: count,
     };
+    if (minWordCount) result.minWordCount = minWordCount;
+    return result;
   }
 
   // objective('description text') — generic, with deep recovery for nested corruption

@@ -108,8 +108,9 @@ export function classifyConversation(input: ClassificationInput): Classification
     return { tier: 'full', reason: 'quest_keywords_detected' };
   }
 
-  // Short follow-up messages (turn 2+, < 50 chars, no complex patterns) → FAST
-  if (turnNumber >= 2 && trimmed.length < 50 && !COMPLEX_LANGUAGE_INDICATORS.test(trimmed)) {
+  // Short follow-up messages (turn 2+, < 50 chars, no complex patterns, no questions) → FAST
+  const hasQuestion = trimmed.includes('?') || /\b(quel|quelle|quels|quelles|qui|que|quoi|où|comment|pourquoi|combien|quand|est-ce que)\b/i.test(trimmed);
+  if (turnNumber >= 2 && trimmed.length < 50 && !COMPLEX_LANGUAGE_INDICATORS.test(trimmed) && !hasQuestion) {
     return { tier: 'fast', reason: 'short_followup' };
   }
 

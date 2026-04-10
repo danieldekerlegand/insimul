@@ -1464,6 +1464,27 @@ export async function generateWorldIR(
       console.log(`[Export] Added ${extraAssets.length} collection asset ID mappings`);
     }
   }
+  // Also map visualAssetId references from world items (used for 3D item models)
+  const itemAssetIds = worldItems
+    .map((item: any) => item.visualAssetId)
+    .filter((id: string | undefined) => id && !assetIdToPath[id]);
+  if (itemAssetIds.length > 0) {
+    const uniqueItemAssetIds = [...new Set(itemAssetIds)] as string[];
+    try {
+      const itemAssets = await storage.getVisualAssetsByIds(uniqueItemAssetIds);
+      for (const asset of itemAssets) {
+        const id = asset.id || (asset as any)._id?.toString();
+        if (id && asset.filePath) {
+          let exportPath = asset.filePath;
+          if (exportPath.startsWith('/')) exportPath = '.' + exportPath;
+          assetIdToPath[id] = exportPath;
+        }
+      }
+      console.log(`[Export] Added ${itemAssets.length} item visual asset ID mappings`);
+    } catch (e) {
+      console.warn('[Export] Failed to resolve item visual assets:', e);
+    }
+  }
   console.log(`[Export] Built asset ID mapping: ${Object.keys(assetIdToPath).length} entries`);
 
   const assetTime = Date.now() - assetStartTime;
@@ -2334,6 +2355,7 @@ export async function generateWorldIR(
       selectedAssetCollectionId: assetCollectionId || null,
       world3DConfig: world3DConfig || {},
       assetIdToPath,
+      cameraPerspective: world.cameraPerspective || null,
     },
 
     geography: {

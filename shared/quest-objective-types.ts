@@ -770,6 +770,68 @@ export function validateAndNormalizeObjectives(
     .filter((obj): obj is NonNullable<typeof obj> => obj !== null);
 }
 
+// ── Default requirements for objective types ────────────────────────────────
+// These are the canonical defaults used when a quest author doesn't specify a
+// value. The quest-converter encodes them into Prolog, the quest-hydrator reads
+// them back, and QuestCompletionEngine uses them as fallbacks.
+// Authors can override any value by setting it explicitly in the quest definition.
+
+export interface ObjectiveTypeDefaults {
+  /** Default requiredCount for countable objectives */
+  requiredCount?: number;
+  /** Minimum word count for writing objectives */
+  minWordCount?: number;
+  /** Minimum observation duration in seconds */
+  observeDurationSeconds?: number;
+  /** Minimum relationship strength (0-1) for friendship objectives */
+  requiredStrength?: number;
+  /** Minimum required reputation for reputation objectives */
+  reputationRequired?: number;
+}
+
+export const OBJECTIVE_TYPE_DEFAULTS: Record<string, ObjectiveTypeDefaults> = {
+  // Conversation types
+  conversation: { requiredCount: 3 },
+  arrival_conversation: { requiredCount: 3 },
+  departure_conversation: { requiredCount: 3 },
+  periodic_conversational: { requiredCount: 3 },
+  complete_conversation: { requiredCount: 5 },
+  conversation_turns: { requiredCount: 5 },
+
+  // Language skill types
+  use_vocabulary: { requiredCount: 10 },
+  collect_vocabulary: { requiredCount: 10 },
+  pronunciation_check: { requiredCount: 3 },
+  listen_and_repeat: { requiredCount: 3 },
+  listening_comprehension: { requiredCount: 3 },
+  translation_challenge: { requiredCount: 3 },
+  comprehension_quiz: { requiredCount: 3 },
+  teach_vocabulary: { requiredCount: 3 },
+  grammar: { requiredCount: 2 },
+
+  // Writing types
+  writing: { minWordCount: 20 },
+  arrival_writing: { minWordCount: 20 },
+  departure_writing: { minWordCount: 20 },
+  write_response: { requiredCount: 1, minWordCount: 20 },
+  describe_scene: { requiredCount: 1, minWordCount: 20 },
+
+  // Social types
+  build_friendship: { requiredStrength: 0.5 },
+  gain_reputation: { reputationRequired: 100 },
+
+  // Observation types
+  observe_activity: { observeDurationSeconds: 5 },
+};
+
+/**
+ * Get the default requiredCount for an objective type.
+ * Returns 1 if no specific default is defined.
+ */
+export function getDefaultRequiredCount(objectiveType: string): number {
+  return OBJECTIVE_TYPE_DEFAULTS[objectiveType]?.requiredCount ?? 1;
+}
+
 // ── LLM prompt helper ────────────────────────────────────────────────────────
 
 /**

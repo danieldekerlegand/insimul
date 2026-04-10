@@ -15884,7 +15884,7 @@ Make the action names thematic and immersive.`;
       }
 
       const occupation = (character.occupation || '').toLowerCase();
-      const merchantOccupations = ['merchant', 'shopkeeper', 'trader', 'vendor', 'blacksmith', 'apothecary', 'baker', 'butcher', 'tailor', 'jeweler', 'armorer', 'weaponsmith'];
+      const merchantOccupations = ['merchant', 'shopkeeper', 'trader', 'vendor', 'blacksmith', 'apothecary', 'baker', 'butcher', 'tailor', 'jeweler', 'armorer', 'weaponsmith', 'owner', 'cashier', 'grocer', 'waiter', 'cook', 'herbalist'];
       const isMerchant = merchantOccupations.some(term => occupation.includes(term));
 
       // Allow if occupation matches OR if businessType was provided (NPC is in a mercantile building)

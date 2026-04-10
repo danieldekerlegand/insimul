@@ -95,6 +95,7 @@ export async function generateWorldSnapshot(worldId: string): Promise<WorldSnaps
       gameType: world.gameType || null,
       targetLanguage: world.targetLanguage || null,
       description: world.description || null,
+      cameraPerspective: world.cameraPerspective || null,
     },
     countries: countries.map((c: any): CountrySnapshot => ({
       id: c.id,

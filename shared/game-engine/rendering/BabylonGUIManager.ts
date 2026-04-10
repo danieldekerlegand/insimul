@@ -137,6 +137,9 @@ export class BabylonGUIManager {
   private config: GUIConfig;
 
   // UI Elements
+  private crosshairContainer: Container | null = null;
+  private crosshairFreeMode = false;
+  private crosshairMouseHandler: ((e: MouseEvent) => void) | null = null;
   private hudContainer: Container | null = null;
   private worldStatsPanel: Container | null = null;
   private playerStatsPanel: Container | null = null;
@@ -208,7 +211,100 @@ export class BabylonGUIManager {
   private initialize() {
     this.createHUD();
     this.createFullscreenButton();
+  }
 
+  /**
+   * Show a centered crosshair reticle for first-person mode.
+   */
+  public showCrosshair(): void {
+    if (this.crosshairContainer) return;
+
+    const container = new Container('crosshair_container');
+    container.width = '30px';
+    container.height = '30px';
+    container.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+    container.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
+    container.isPointerBlocker = false;
+
+    // Outer ring
+    const ring = new Ellipse('crosshair_ring');
+    ring.width = '20px';
+    ring.height = '20px';
+    ring.color = 'rgba(255, 255, 255, 0.6)';
+    ring.thickness = 1.5;
+    ring.background = '';
+    container.addControl(ring);
+
+    // Center dot
+    const dot = new Ellipse('crosshair_dot');
+    dot.width = '4px';
+    dot.height = '4px';
+    dot.color = 'white';
+    dot.thickness = 0;
+    dot.background = 'rgba(255, 255, 255, 0.8)';
+    container.addControl(dot);
+
+    this.advancedTexture.addControl(container);
+    this.crosshairContainer = container;
+  }
+
+  /**
+   * Hide the crosshair reticle.
+   */
+  public hideCrosshair(): void {
+    this.setCrosshairFreeMode(false);
+    if (this.crosshairContainer) {
+      this.advancedTexture.removeControl(this.crosshairContainer);
+      this.crosshairContainer = null;
+    }
+  }
+
+  /**
+   * Switch crosshair to free-move mode (tracks mouse position) or back to
+   * centered mode (fixed at screen center for pointer-lock look).
+   */
+  public setCrosshairFreeMode(free: boolean): void {
+    if (free === this.crosshairFreeMode) return;
+    this.crosshairFreeMode = free;
+
+    if (!this.crosshairContainer) return;
+
+    if (free) {
+      // Switch from centered to absolute positioning
+      this.crosshairContainer.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+      this.crosshairContainer.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+
+      // Position at screen center initially
+      const idealW = this.advancedTexture.idealWidth;
+      const aspectRatio = this.advancedTexture.getSize().height / this.advancedTexture.getSize().width;
+      const idealH = idealW * aspectRatio;
+      this.crosshairContainer.leftInPixels = idealW / 2;
+      this.crosshairContainer.topInPixels = idealH / 2;
+
+      // Track mouse movement to move the crosshair
+      this.crosshairMouseHandler = (e: MouseEvent) => {
+        if (!this.crosshairContainer || !this.crosshairFreeMode) return;
+        const canvas = this.scene.getEngine().getRenderingCanvas();
+        if (!canvas) return;
+        const rect = canvas.getBoundingClientRect();
+        // Convert mouse CSS position to GUI ideal coordinates
+        const guiX = ((e.clientX - rect.left) / rect.width) * idealW;
+        const guiY = ((e.clientY - rect.top) / rect.height) * idealH;
+        this.crosshairContainer.leftInPixels = guiX;
+        this.crosshairContainer.topInPixels = guiY;
+      };
+      window.addEventListener('mousemove', this.crosshairMouseHandler);
+    } else {
+      // Switch back to centered
+      if (this.crosshairMouseHandler) {
+        window.removeEventListener('mousemove', this.crosshairMouseHandler);
+        this.crosshairMouseHandler = null;
+      }
+      this.crosshairContainer.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+      this.crosshairContainer.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
+      this.crosshairContainer.leftInPixels = 0;
+      this.crosshairContainer.topInPixels = 0;
+    }
   }
 
   private createHUD() {
@@ -1965,7 +2061,7 @@ export class BabylonGUIManager {
         const [nx, nz] = toMap(npc.position.x, npc.position.z);
         const isHighlighted = highlightId && npc.id === highlightId;
         // Treat highlighted NPCs and NPCs with 'available' quest indicator as prominent
-        const isProminent = isHighlighted || npc.questIndicator === 'available';
+        const isProminent = isHighlighted || npc.questIndicator === 'available' || npc.questIndicator === 'objective';
 
         // Show prominent NPCs even if slightly off-screen (clamped to edge)
         if (!isProminent && (Math.abs(nx) > mapHalf || Math.abs(nz) > mapHalf)) continue;
@@ -1974,7 +2070,7 @@ export class BabylonGUIManager {
           // Prominent pulsing marker — unified style for quest-target and highlighted NPCs
           const pulseSize = Math.round(16 * zoomDotScale * pulseScale);
           const indicatorColor = npc.questIndicator === 'turn_in' ? '#32CD32' : '#FFD700';
-          const indicatorSymbol = npc.questIndicator === 'turn_in' ? '\u2713' : '!';
+          const indicatorSymbol = npc.questIndicator === 'turn_in' ? '\u2713' : npc.questIndicator === 'available' ? '?' : '!';
           const clampedNx = Math.max(-mapHalf + 12, Math.min(mapHalf - 12, nx));
           const clampedNz = Math.max(-mapHalf + 12, Math.min(mapHalf - 12, nz));
 
@@ -2021,14 +2117,37 @@ export class BabylonGUIManager {
           dot.thickness = zoomDotScale >= 0.5 ? 1 : 0;
 
           if (npc.role === 'guard') { dot.background = '#F44336'; dot.color = '#F44336'; }
-          else if (npc.role === 'merchant') { dot.background = '#4CAF50'; dot.color = '#4CAF50'; }
           else if (npc.role === 'questgiver') { dot.background = '#FFC107'; dot.color = '#FFC107'; }
-          else { dot.background = '#00E676'; dot.color = '#00E676'; }
+          else if (npc.role !== 'merchant') { dot.background = '#00E676'; dot.color = '#00E676'; }
 
-          dot.left = `${nx}px`;
-          dot.top = `${nz}px`;
-          mapContainer.addControl(dot);
-          this._minimapDynamicControls.push(dot);
+          if (npc.role === 'merchant') {
+            // Merchant: larger green circle with $ symbol
+            const merchantSize = Math.max(8, Math.round(14 * zoomDotScale));
+            dot.width = `${merchantSize}px`;
+            dot.height = `${merchantSize}px`;
+            dot.background = '#4CAF50';
+            dot.color = '#2E7D32';
+            dot.thickness = 1;
+            dot.left = `${nx}px`;
+            dot.top = `${nz}px`;
+            mapContainer.addControl(dot);
+            this._minimapDynamicControls.push(dot);
+
+            const dollarSign = new TextBlock(`npc-merchant-${npc.id}`);
+            dollarSign.text = '$';
+            dollarSign.color = '#FFFFFF';
+            dollarSign.fontSize = Math.max(6, Math.round(10 * zoomDotScale));
+            dollarSign.fontWeight = 'bold';
+            dollarSign.left = `${nx}px`;
+            dollarSign.top = `${nz}px`;
+            mapContainer.addControl(dollarSign);
+            this._minimapDynamicControls.push(dollarSign);
+          } else {
+            dot.left = `${nx}px`;
+            dot.top = `${nz}px`;
+            mapContainer.addControl(dot);
+            this._minimapDynamicControls.push(dot);
+          }
 
           // Show quest indicator symbol above NPC dot on minimap
           // (only for non-prominent indicators — prominent ones are handled above)
@@ -2520,7 +2639,7 @@ export class BabylonGUIManager {
       { key: "Enter / Click", action: "Interact (NPC / building / object)" },
       { key: "X", action: "Examine Nearest Object" },
       { key: "Y", action: "Eavesdrop on NPC Conversation" },
-      { key: "R", action: "Push-to-Talk (hold to speak)" }
+      { key: "T", action: "Push-to-Talk (hold to speak)" }
     ]);
 
     this.addHelpSection(mainStack, "UI Panels", [

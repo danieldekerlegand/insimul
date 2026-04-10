@@ -79,20 +79,47 @@ export function createAssessmentScoringRoutes(): Router {
 
       const prompt = buildScoringPrompt(phaseType, targetLanguage, passage, questions, writingPrompts, answers);
       const ai = getGenAI();
-      const response = await ai.models.generateContent({
-        model: GEMINI_MODELS.FLASH,
-        contents: prompt,
-      });
 
-      const text = response.text ?? '';
-      const parsed = parseScoringResponse(phaseType, text, questions, writingPrompts);
+      // Retry with backoff on network/rate-limit errors
+      let lastError: any = null;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          const response = await ai.models.generateContent({
+            model: GEMINI_MODELS.FLASH,
+            contents: prompt,
+          });
 
-      if (!parsed) {
-        console.error('[AssessmentScoring] Failed to parse scoring response:', text.substring(0, 500));
-        return res.status(500).json({ message: 'Failed to parse scoring response from LLM' });
+          const text = response.text ?? '';
+          const parsed = parseScoringResponse(phaseType, text, questions, writingPrompts);
+
+          if (!parsed) {
+            console.error('[AssessmentScoring] Failed to parse scoring response:', text.substring(0, 500));
+            return res.status(500).json({ message: 'Failed to parse scoring response from LLM' });
+          }
+
+          return res.json(parsed);
+        } catch (err: any) {
+          lastError = err;
+          const isRetryable = err.code === 'UND_ERR_CONNECT_TIMEOUT' || err.status === 503 || err.status === 429
+            || err.message?.includes('fetch failed') || err.message?.includes('timeout');
+          if (isRetryable && attempt < 2) {
+            const delay = 2000 * Math.pow(2, attempt);
+            console.warn(`[AssessmentScoring] Attempt ${attempt + 1} failed (${err.code || err.status || 'unknown'}), retrying in ${delay}ms...`);
+            await new Promise(r => setTimeout(r, delay));
+            continue;
+          }
+          break;
+        }
       }
 
-      res.json(parsed);
+      // All retries failed — return a fallback score so the assessment can still proceed
+      console.error('Score assessment phase error (all retries failed):', lastError);
+      const fallbackScore = buildFallbackScore(phaseType, questions, writingPrompts);
+      if (fallbackScore) {
+        console.warn('[AssessmentScoring] Using fallback scoring — LLM unavailable');
+        return res.json(fallbackScore);
+      }
+      res.status(500).json({ message: 'Failed to score assessment phase' });
     } catch (error) {
       console.error('Score assessment phase error:', error);
       res.status(500).json({ message: 'Failed to score assessment phase' });
@@ -368,6 +395,43 @@ interface ScoringResult {
   questionScores?: Array<{ questionId: string; score: number; maxScore: number; rationale: string }>;
   dimensionScores?: Record<string, { score: number; maxScore: number; rationale: string }>;
   overallRationale: string;
+}
+
+/**
+ * Build a neutral fallback score when the LLM is unavailable.
+ * Awards ~50% of max points so the player can proceed without being penalized
+ * or inflated. The rationale clearly states it was auto-scored.
+ */
+function buildFallbackScore(
+  phaseType: PhaseType,
+  questions?: Array<{ id: string; text: string; maxPoints: number }>,
+  _writingPrompts?: string[],
+): ScoringResult | null {
+  const fallbackRationale = 'Auto-scored: language model was unavailable. Score reflects a neutral estimate.';
+
+  if (phaseType === 'reading' || phaseType === 'listening') {
+    if (!questions || questions.length === 0) return null;
+    const questionScores = questions.map(q => ({
+      questionId: q.id,
+      score: Math.round(q.maxPoints * 0.5),
+      maxScore: q.maxPoints,
+      rationale: fallbackRationale,
+    }));
+    const totalScore = questionScores.reduce((sum, qs) => sum + qs.score, 0);
+    const maxScore = questions.reduce((sum, q) => sum + q.maxPoints, 0);
+    return { totalScore, maxScore, questionScores, overallRationale: fallbackRationale };
+  }
+
+  if (phaseType === 'writing') {
+    const dimensionScores: Record<string, { score: number; maxScore: number; rationale: string }> = {};
+    for (const dim of ['task_completion', 'vocabulary', 'grammar']) {
+      dimensionScores[dim] = { score: 3, maxScore: 5, rationale: fallbackRationale };
+    }
+    return { totalScore: 9, maxScore: 15, dimensionScores, overallRationale: fallbackRationale };
+  }
+
+  // Conversation phase — no structured score needed, return minimal result
+  return { totalScore: 5, maxScore: 10, overallRationale: fallbackRationale };
 }
 
 function parseScoringResponse(

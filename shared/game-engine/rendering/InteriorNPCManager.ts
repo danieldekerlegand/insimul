@@ -405,10 +405,8 @@ export class InteriorNPCManager {
 
     // Cap at MAX_INTERIOR_NPCS
     const npcsToPlace = candidates.slice(0, MAX_INTERIOR_NPCS);
-
     // Get furniture roles for this building type
     const furnitureRoles = this.getFurnitureRoles(interior.buildingType, metadata.businessType);
-
     // Get or create persistent assignments for this building
     if (!this.persistentAssignments.has(buildingId)) {
       this.persistentAssignments.set(buildingId, new Map());
@@ -500,7 +498,6 @@ export class InteriorNPCManager {
 
       this.placedNPCs.set(npc.id, placedNpc);
       placed.push(placedNpc);
-
       // Set animation
       this.callbacks.onAnimationChange?.(npc.id, animState);
 
@@ -613,13 +610,19 @@ export class InteriorNPCManager {
     }
 
     // Add employees whose shift matches the current time (only when business is open)
-    if (metadata.employees && businessOpen) {
-      for (const emp of metadata.employees) {
+    // Support both `employees` and `employeeIds` field names (schema uses employeeIds)
+    const employeeList = metadata.employees || (metadata as any).employeeIds || [];
+    if (employeeList.length > 0 && businessOpen) {
+      for (const emp of employeeList) {
         const empId = typeof emp === 'string' ? emp : emp.id;
         const empShift: 'day' | 'night' = (typeof emp === 'object' && emp.shift) || 'day';
-        if (addedIds.has(empId) || !allNPCs.has(empId)) continue;
+        if (addedIds.has(empId) || !allNPCs.has(empId)) {
+          continue;
+        }
         // Only include employees whose shift is currently active
-        if (!isShiftActive(empShift, metadata.businessType, gameHour)) continue;
+        if (!isShiftActive(empShift, metadata.businessType, gameHour)) {
+          continue;
+        }
         const npc = allNPCs.get(empId)!;
         candidates.push({ id: empId, mesh: npc.mesh, characterData: npc.characterData, role: 'employee' });
         addedIds.add(empId);
@@ -630,7 +633,9 @@ export class InteriorNPCManager {
     if (metadata.occupants) {
       for (const occ of metadata.occupants) {
         const occId = typeof occ === 'string' ? occ : occ.id;
-        if (addedIds.has(occId) || !allNPCs.has(occId)) continue;
+        if (addedIds.has(occId) || !allNPCs.has(occId)) {
+          continue;
+        }
         const npc = allNPCs.get(occId)!;
         candidates.push({ id: occId, mesh: npc.mesh, characterData: npc.characterData, role: 'owner' });
         addedIds.add(occId);
@@ -708,6 +713,23 @@ export class InteriorNPCManager {
         candidates.push({ id: v.id, mesh: v.mesh, characterData: v.characterData, role: 'visitor' });
         addedIds.add(v.id);
       }
+    }
+
+    // Add NPCs that the schedule system has placed inside this building
+    // (they may not be the owner/employees but are scheduled to be here)
+    const scheduledNpcIds: string[] = (metadata as any).scheduledNpcIds || [];
+    for (const npcId of scheduledNpcIds) {
+      if (addedIds.has(npcId) || !allNPCs.has(npcId)) {
+        continue;
+      }
+      if (candidates.length >= MAX_INTERIOR_NPCS) break;
+      const npc = allNPCs.get(npcId)!;
+      // Determine role: check if they're the owner or an employee
+      const isOwner = metadata.ownerId === npcId;
+      const isEmployee = employeeList.some((e: any) => (typeof e === 'string' ? e : e.id) === npcId);
+      const role: InteriorNPCRole = isOwner ? 'owner' : isEmployee ? 'employee' : 'visitor';
+      candidates.push({ id: npcId, mesh: npc.mesh, characterData: npc.characterData, role });
+      addedIds.add(npcId);
     }
 
     return candidates;

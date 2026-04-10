@@ -235,6 +235,10 @@ export function EngineExportDialog({ open, onOpenChange, worldId, worldName, ini
       if (buildExecutable && selectedEngine === 'babylon') {
         body.buildExecutable = true;
       }
+      // Save to disk instead of downloading as ZIP (avoids ZIP corruption)
+      if (selectedEngine === 'babylon') {
+        body.format = 'directory';
+      }
       if (selectedEngine === 'unity') {
         body.unityVersion = unityVersion;
       }
@@ -263,54 +267,60 @@ export function EngineExportDialog({ open, onOpenChange, worldId, worldName, ini
       setSteps(prev => prev.map(s => ({ ...s, status: 'done' as const })));
       setProgress(100);
 
-      // Read response as blob regardless of content-type
-      const blob = await response.blob();
-      // Build filename matching server format: [WorldNameCamelCase][Engine][Mode][Cloud|Local]
-      const safeName = worldName
-        .split(/[^a-zA-Z0-9]+/)
-        .filter(Boolean)
-        .map(w => w.charAt(0).toUpperCase() + w.slice(1))
-        .join('') || 'InsimulWorld';
-      const engineLabel = selectedEngine.charAt(0).toUpperCase() + selectedEngine.slice(1);
-      const modeLabel = selectedEngine === 'babylon' ? (babylonMode === 'electron' ? 'Electron' : 'Web') : '';
-      const aiLabel = aiProvider === 'local' ? 'Local' : 'Cloud';
-      const filename = `${safeName}${engineLabel}${modeLabel}${aiLabel}.zip`;
+      // Check if response is JSON (directory export) or binary (ZIP download)
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        // Directory export — server wrote files to disk
+        const json = await response.json();
+        if (json.outputDir) {
+          setStats({ totalFiles: 0, totalSizeBytes: 0, generationTimeMs: 0 });
+          toast({ title: 'Export Complete', description: `Saved to: ${json.outputDir}` });
+          setIsDone(true);
+        } else {
+          throw new Error(json.error || 'Export failed');
+        }
+        return;
+      } else {
+        // ZIP download
+        const blob = await response.blob();
+        const safeName = worldName
+          .split(/[^a-zA-Z0-9]+/)
+          .filter(Boolean)
+          .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+          .join('') || 'InsimulWorld';
+        const engineLabel = selectedEngine.charAt(0).toUpperCase() + selectedEngine.slice(1);
+        const modeLabel = selectedEngine === 'babylon' ? (babylonMode === 'electron' ? 'Electron' : 'Web') : '';
+        const aiLabel = aiProvider === 'local' ? 'Local' : 'Cloud';
+        const filename = `${safeName}${engineLabel}${modeLabel}${aiLabel}.zip`;
 
-      // Validate ZIP magic bytes (PK = 0x50 0x4B)
-      const header = new Uint8Array(await blob.slice(0, 2).arrayBuffer());
-      const isZip = header[0] === 0x50 && header[1] === 0x4B;
+        // Validate ZIP magic bytes (PK = 0x50 0x4B)
+        const header = new Uint8Array(await blob.slice(0, 2).arrayBuffer());
+        const isZip = header[0] === 0x50 && header[1] === 0x4B;
 
-      if (!isZip) {
-        // Response was likely JSON, not ZIP — try to parse and show error
-        const text = await blob.text();
-        console.error('[Export] Response is not a ZIP. Content:', text.substring(0, 200));
-        try {
-          const json = JSON.parse(text);
-          if (json.stats) {
-            setStats(json.stats);
-          }
-        } catch { /* ignore parse errors */ }
-        throw new Error('Server returned data instead of a ZIP file. Please restart the server and try again.');
+        if (!isZip) {
+          const text = await blob.text();
+          console.error('[Export] Response is not a ZIP. Content:', text.substring(0, 200));
+          try {
+            const json = JSON.parse(text);
+            if (json.stats) setStats(json.stats);
+          } catch { /* ignore */ }
+          throw new Error('Server returned data instead of a ZIP file. Please restart the server and try again.');
+        }
+
+        const blobUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.style.display = 'none';
+        link.href = blobUrl;
+        link.setAttribute('download', filename);
+        document.body.appendChild(link);
+        link.click();
+        setTimeout(() => {
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(blobUrl);
+        }, 1000);
+
+        setStats({ totalFiles: 0, totalSizeBytes: blob.size, generationTimeMs: 0 });
       }
-
-      // Valid ZIP — trigger download
-      const blobUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.style.display = 'none';
-      link.href = blobUrl;
-      link.setAttribute('download', filename);
-      document.body.appendChild(link);
-      link.click();
-      setTimeout(() => {
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(blobUrl);
-      }, 1000);
-
-      setStats({
-        totalFiles: 0,
-        totalSizeBytes: blob.size,
-        generationTimeMs: 0,
-      });
 
       toast({
         title: 'Export Complete',

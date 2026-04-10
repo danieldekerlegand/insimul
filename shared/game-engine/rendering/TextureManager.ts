@@ -135,9 +135,9 @@ export class TextureManager {
 
     // Handle both absolute URLs and relative paths
     if (!texturePath.startsWith('http://') && !texturePath.startsWith('https://')) {
-      // Relative path → ensure it starts with '/'
-      if (!texturePath.startsWith('/')) {
-        texturePath = `/${texturePath}`;
+      // Ensure path starts with / or ./ for consistent resolution
+      if (!texturePath.startsWith('/') && !texturePath.startsWith('./')) {
+        texturePath = `./${texturePath}`;
       }
     } else {
       // External URL → log warning (should be downloaded locally in production)
@@ -169,7 +169,7 @@ export class TextureManager {
 
     let texturePath = asset.filePath;
     if (!texturePath.startsWith('http://') && !texturePath.startsWith('https://')) {
-      if (!texturePath.startsWith('/')) texturePath = `/${texturePath}`;
+      if (!texturePath.startsWith('/') && !texturePath.startsWith('./')) texturePath = `./${texturePath}`;
     }
 
     const texture = await this.queueTextureLoad(texturePath);
@@ -227,7 +227,7 @@ export class TextureManager {
     vScale?: number;
     useBump?: boolean;
   }) {
-    const groundMesh = this.scene.getMeshByName("ground");
+    const groundMesh = this.scene.getMeshByName("ground") || this.scene.getMeshByName("terrain");
     if (!groundMesh) {
       console.warn("Ground mesh not found");
       return;

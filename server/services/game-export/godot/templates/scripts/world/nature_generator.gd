@@ -313,6 +313,8 @@ func _spawn_geological(geo_type: String, instances: Array) -> void:
 		add_child(node)
 
 func _create_rock(sc: float) -> Node3D:
+	var root := Node3D.new()
+	root.name = "Rock"
 	var rock := _make_sphere(1.0, 4)
 	var rock_mat := _get_mat("rock", Color(0.4, 0.4, 0.35))
 	rock.material_override = rock_mat
@@ -322,19 +324,41 @@ func _create_rock(sc: float) -> Node3D:
 	var sz: float = sc
 	rock.scale = Vector3(sx, sy, sz)
 	rock.position.y = sy * 0.25
-	return rock
+	root.add_child(rock)
+	# Collision body sized to the rock footprint
+	var body := StaticBody3D.new()
+	var col := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(sx, sy * 0.7, sz)
+	col.shape = box
+	col.position.y = sy * 0.35
+	body.add_child(col)
+	root.add_child(body)
+	return root
 
 func _create_boulder(sc: float) -> Node3D:
+	var root := Node3D.new()
+	root.name = "Boulder"
 	var boulder := _make_sphere(2.0 + sc * 1.5, 5)
 	var mat := _get_mat("boulder", Color(0.42, 0.42, 0.38))
 	boulder.material_override = mat
-	boulder.scale = Vector3(
-		1.0 + fmod(absf(sc * 47.3), 1.0) * 0.3,
-		0.6 + fmod(absf(sc * 19.7), 1.0) * 0.4,
-		1.0 + fmod(absf(sc * 83.1), 1.0) * 0.3
-	)
+	var bsx: float = 1.0 + fmod(absf(sc * 47.3), 1.0) * 0.3
+	var bsy: float = 0.6 + fmod(absf(sc * 19.7), 1.0) * 0.4
+	var bsz: float = 1.0 + fmod(absf(sc * 83.1), 1.0) * 0.3
+	boulder.scale = Vector3(bsx, bsy, bsz)
 	boulder.position.y = sc * 0.25
-	return boulder
+	root.add_child(boulder)
+	# Collision body
+	var body := StaticBody3D.new()
+	var col := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	var radius: float = 2.0 + sc * 1.5
+	box.size = Vector3(radius * bsx, radius * bsy * 0.7, radius * bsz)
+	col.shape = box
+	col.position.y = sc * 0.25
+	body.add_child(col)
+	root.add_child(body)
+	return root
 
 func _create_pillar(sc: float) -> Node3D:
 	var height: float = 3.0 + sc * 2.5

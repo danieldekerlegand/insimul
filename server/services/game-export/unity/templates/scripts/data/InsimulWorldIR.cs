@@ -37,6 +37,8 @@ namespace Insimul.Data
         public string world3DConfig;
         /// <summary>MongoDB asset ID → export file path entries for offline resolution.</summary>
         public AssetIdEntry[] assetIdToPath;
+        /// <summary>Camera perspective: first_person, third_person, isometric, etc.</summary>
+        public string cameraPerspective;
     }
 
     [Serializable] public class GeographyData

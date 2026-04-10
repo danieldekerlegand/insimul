@@ -300,6 +300,14 @@ export function registerExportRoutes(app: Express): void {
         // Auto-detect API URL for cloud saves in standalone mode
         const apiUrl = req.body.apiUrl || (mode === 'electron' ? `${req.protocol}://${req.get('host')}` : undefined);
         console.log(`[Export] Generating Babylon.js ${mode} project for world ${worldId}${aiProvider ? ` (AI: ${aiProvider})` : ''}${buildExecutable ? ' (building executable)' : ''}...`);
+
+        // Directory export: write files to disk instead of creating a ZIP download
+        if (format === 'directory') {
+          const { exportBabylonProjectToDirectory } = await import('../services/game-export/babylon/babylon-exporter-new');
+          const outputDir = await exportBabylonProjectToDirectory(worldId, { mode, telemetry: telemetryConfig, aiProvider, buildExecutable, apiUrl });
+          return res.json({ success: true, outputDir });
+        }
+
         const zipBuffer = await exportBabylonProject(worldId, { mode, telemetry: telemetryConfig, aiProvider, buildExecutable, apiUrl });
 
         // Get world IR for filename

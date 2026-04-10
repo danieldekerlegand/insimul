@@ -186,9 +186,11 @@ void AProceduralNatureGenerator::GenerateNature(int32 TerrainSize, int32 Seed,
         if (IsNearRoad(Candidate, RoadSegments, 300.f)) continue;
 
         float RockScale = Rng.FRandRange(0.5f, 2.0f);
+        // Irregular XZ scaling for natural look (matches source rock footprint logic)
+        float XZVariation = Rng.FRandRange(0.8f, 1.4f);
         FTransform RockTransform;
         RockTransform.SetLocation(FVector(Candidate.X, Candidate.Y, RockScale * 25.f));
-        RockTransform.SetScale3D(FVector(RockScale, RockScale * Rng.FRandRange(0.7f, 1.3f), RockScale * 0.6f));
+        RockTransform.SetScale3D(FVector(RockScale * XZVariation, RockScale * Rng.FRandRange(0.7f, 1.3f), RockScale * 0.6f));
         RockTransform.SetRotation(FQuat(FRotator(0.f, Rng.FRandRange(0.f, 360.f), 0.f)));
         RockISMC->AddInstance(RockTransform);
 

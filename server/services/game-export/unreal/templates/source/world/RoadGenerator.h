@@ -24,4 +24,8 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
     float RoadRadius = {{ROAD_RADIUS}};
+
+    /** Height offset above terrain to prevent z-fighting on slopes. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Style")
+    float RoadElevation = 0.5f;
 };

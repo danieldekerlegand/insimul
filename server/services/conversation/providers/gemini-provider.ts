@@ -47,7 +47,7 @@ export class GeminiStreamingProvider implements IStreamingLLMProvider {
     // Select model and parameters based on tier
     const isFastTier = options?.modelTier === 'fast';
     const modelName = isFastTier ? GEMINI_MODELS.FLASH_LITE : this.modelName;
-    const defaultMaxTokens = isFastTier ? 256 : 1024;
+    const defaultMaxTokens = isFastTier ? 512 : 1024;
     const defaultTemperature = isFastTier ? 0.7 : 0.8;
 
     // Only include thinkingConfig for models that support it (gemini-3.x series)

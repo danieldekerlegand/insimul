@@ -183,6 +183,19 @@ function resolveNPCActions(
     });
   }
 
+  // Browse Wares — available for merchant NPCs even outside buildings
+  const npcRole = target.npcRole;
+  if (npcRole === 'merchant' && !context.hasBusinessInteractions) {
+    actions.push({
+      id: '__browse_wares__',
+      icon: '🛒',
+      label: 'Browse Wares',
+      labelTranslation: 'Shop',
+      canPerform: true,
+      category: 'social',
+    });
+  }
+
   // Give Gift — physical romance action, available when player has inventory items
   actions.push({
     id: '__give_gift__',

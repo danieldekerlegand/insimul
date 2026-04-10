@@ -49,8 +49,8 @@ export class RoadGenerator {
   private scene: Scene;
   private roadMeshes: Mesh[] = [];
   private roadWidth: number = 10;
-  private sampleInterval: number = 6;
-  private yOffset: number = 0.2; // Offset above ground to prevent z-fighting on slopes
+  private sampleInterval: number = 4;
+  private yOffset: number = 0.5; // Offset above ground to prevent z-fighting
 
   // Road appearance
   private roadColor: Color3 = new Color3(0.40, 0.39, 0.36); // Soft neutral default
@@ -64,6 +64,11 @@ export class RoadGenerator {
 
   constructor(scene: Scene) {
     this.scene = scene;
+  }
+
+  /** Register a road mesh. */
+  private addRoadMesh(mesh: Mesh): void {
+    this.roadMeshes.push(mesh);
   }
 
   /**
@@ -126,7 +131,7 @@ export class RoadGenerator {
       const mesh = this.createRoadSegment(segId, from, to, sampleHeight);
       if (mesh) {
         segments.push({ from, to, mesh });
-        this.roadMeshes.push(mesh);
+        this.addRoadMesh(mesh);
         this.storedSegments.push({
           ax: from.x, az: from.z, bx: to.x, bz: to.z,
           halfWidth: this.roadWidth / 2,
@@ -185,7 +190,7 @@ export class RoadGenerator {
       const mesh = this.createPolylineRoad(
         `street_${seg.id}`, seg.waypoints, sampleHeight, seg.width
       );
-      if (mesh) this.roadMeshes.push(mesh);
+      if (mesh) this.addRoadMesh(mesh);
 
       // Store consecutive waypoint pairs for point-on-road queries
       const halfW = seg.width / 2;
@@ -201,7 +206,7 @@ export class RoadGenerator {
       const dashes = this.createDashedCenterLine(
         `centerline_${seg.id}`, seg.waypoints, sampleHeight, centerLineWidth, centerLineColor
       );
-      for (const dash of dashes) this.roadMeshes.push(dash);
+      for (const dash of dashes) this.addRoadMesh(dash);
 
       // Sidewalks: one per block (between each pair of adjacent waypoints),
       // inset from intersection nodes so they don't cross perpendicular streets.
@@ -238,14 +243,14 @@ export class RoadGenerator {
         const leftMesh = this.createPolylineRoad(
           `sidewalk_l_${seg.id}_${i}`, leftWps, sampleHeight, sidewalkWidth, sidewalkColor, curbHeight
         );
-        if (leftMesh) this.roadMeshes.push(leftMesh);
+        if (leftMesh) this.addRoadMesh(leftMesh);
 
         // Right sidewalk
         const rightWps = this.offsetPolyline(blockWps, -sidewalkCenter);
         const rightMesh = this.createPolylineRoad(
           `sidewalk_r_${seg.id}_${i}`, rightWps, sampleHeight, sidewalkWidth, sidewalkColor, curbHeight
         );
-        if (rightMesh) this.roadMeshes.push(rightMesh);
+        if (rightMesh) this.addRoadMesh(rightMesh);
       }
     }
 
@@ -265,7 +270,7 @@ export class RoadGenerator {
         const crosswalks = this.createCrosswalk(
           `crosswalk_${node.id}_${segId}`, node, seg, sampleHeight, crosswalkColor
         );
-        for (const cw of crosswalks) this.roadMeshes.push(cw);
+        for (const cw of crosswalks) this.addRoadMesh(cw);
       }
 
     }
@@ -425,8 +430,10 @@ export class RoadGenerator {
       const rx = curr.x - perpX * halfWidth;
       const rz = curr.z - perpZ * halfWidth;
 
-      leftPath.push(new Vector3(lx, sampleHeight(lx, lz) + this.yOffset + extraYOffset, lz));
-      rightPath.push(new Vector3(rx, sampleHeight(rx, rz) + this.yOffset + extraYOffset, rz));
+      // Sample center and both edges, use the max so road clears terrain bumps
+      const waypointMaxY = Math.max(sampleHeight(curr.x, curr.z), sampleHeight(lx, lz), sampleHeight(rx, rz)) + this.yOffset + extraYOffset;
+      leftPath.push(new Vector3(lx, waypointMaxY, lz));
+      rightPath.push(new Vector3(rx, waypointMaxY, rz));
 
       // Subdivide long spans between waypoints
       if (i < waypoints.length - 1) {
@@ -445,8 +452,9 @@ export class RoadGenerator {
           const mrx = mx - perpX * halfWidth;
           const mrz = mz - perpZ * halfWidth;
 
-          leftPath.push(new Vector3(mlx, sampleHeight(mlx, mlz) + this.yOffset + extraYOffset, mlz));
-          rightPath.push(new Vector3(mrx, sampleHeight(mrx, mrz) + this.yOffset + extraYOffset, mrz));
+          const spanMaxY = Math.max(sampleHeight(mx, mz), sampleHeight(mlx, mlz), sampleHeight(mrx, mrz)) + this.yOffset + extraYOffset;
+          leftPath.push(new Vector3(mlx, spanMaxY, mlz));
+          rightPath.push(new Vector3(mrx, spanMaxY, mrz));
         }
       }
     }
@@ -471,7 +479,7 @@ export class RoadGenerator {
 
       const mat = new StandardMaterial(`${id}_mat`, this.scene);
       mat.backFaceCulling = false;
-      mat.zOffset = -1;
+      mat.zOffset = -2;
       mat.specularColor = new Color3(0.05, 0.05, 0.05); // Very low specular — matte surface
 
       if (colorOverride) {
@@ -730,7 +738,7 @@ export class RoadGenerator {
         new Vector3(signX, y + 2.5, signZ),
         segDir
       );
-      if (signMesh) this.roadMeshes.push(signMesh);
+      if (signMesh) this.addRoadMesh(signMesh);
     }
   }
 
@@ -900,7 +908,7 @@ export class RoadGenerator {
       const width = street.isMainStreet ? this.roadWidth : this.roadWidth * 0.6;
       const mesh = this.createRoadSegment(segId, street.from, street.to, sampleHeight, width);
       if (mesh) {
-        this.roadMeshes.push(mesh);
+        this.addRoadMesh(mesh);
         this.storedSegments.push({
           ax: street.from.x, az: street.from.z,
           bx: street.to.x, bz: street.to.z,
@@ -967,7 +975,7 @@ export class RoadGenerator {
       const mesh = this.createStreetEdgeMesh(edge.id, waypoints, width, color, sampleHeight);
       if (mesh) {
         meshes.push(mesh);
-        this.roadMeshes.push(mesh);
+        this.addRoadMesh(mesh);
 
         // Store waypoint pairs for point-on-road collision queries
         const halfW = width / 2;
@@ -1058,7 +1066,7 @@ export class RoadGenerator {
 
       const mat = new StandardMaterial(`street_${id}_mat`, this.scene);
       mat.backFaceCulling = false;
-      mat.zOffset = -1;
+      mat.zOffset = -2;
       mat.specularColor = new Color3(0.05, 0.05, 0.05);
 
       if (this.roadTexture) {
@@ -1189,12 +1197,15 @@ export class RoadGenerator {
       const rx = cx - perpX * halfWidth;
       const rz = cz - perpZ * halfWidth;
 
-      // Sample terrain height at each edge
-      const ly = sampleHeight(lx, lz) + this.yOffset;
-      const ry = sampleHeight(rx, rz) + this.yOffset;
+      // Sample terrain height at center and both edges, use the max so the
+      // road surface always clears any terrain bumps across the full width
+      const centerY = sampleHeight(cx, cz);
+      const leftY = sampleHeight(lx, lz);
+      const rightY = sampleHeight(rx, rz);
+      const maxY = Math.max(centerY, leftY, rightY) + this.yOffset;
 
-      leftPath.push(new Vector3(lx, ly, lz));
-      rightPath.push(new Vector3(rx, ry, rz));
+      leftPath.push(new Vector3(lx, maxY, lz));
+      rightPath.push(new Vector3(rx, maxY, rz));
     }
 
     try {
@@ -1215,7 +1226,7 @@ export class RoadGenerator {
 
       const mat = new StandardMaterial(`${id}_mat`, this.scene);
       mat.backFaceCulling = false;
-      mat.zOffset = -1;
+      mat.zOffset = -2;
       mat.specularColor = new Color3(0.05, 0.05, 0.05);
       if (this.roadTexture) {
         const tex = this.roadTexture.clone();
@@ -1383,7 +1394,7 @@ export class RoadGenerator {
         `walkway_${bi}`, walkwayPts, walkwaySampleHeight, walkwayWidth, walkwayColor, curbHeight
       );
       if (mesh) {
-        this.roadMeshes.push(mesh);
+        this.addRoadMesh(mesh);
       }
     }
   }
@@ -1525,7 +1536,7 @@ export class RoadGenerator {
         pole.alwaysSelectAsActiveMesh = true;
         pole.freezeWorldMatrix();
 
-        this.roadMeshes.push(pole);
+        this.addRoadMesh(pole);
         this.streetLights.push(light);
         newLights.push(light);
         lampCount++;

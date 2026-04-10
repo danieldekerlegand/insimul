@@ -209,6 +209,8 @@ export class NPCInteractionPrompt {
     switch (type) {
       case 'available':
         return { text: 'Quest Available', color: '#FFD700' };
+      case 'objective':
+        return { text: 'Quest Objective', color: '#FFD700' };
       case 'in_progress':
         return { text: 'Quest In Progress', color: '#C0C0C0' };
       case 'turn_in':

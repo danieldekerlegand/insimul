@@ -699,7 +699,7 @@ export class ProceduralBuildingGenerator {
         const merged = Mesh.MergeMeshes(validMeshes, true, true, undefined, false, false);
         if (merged) {
           merged.parent = parent;
-          merged.isPickable = false;
+          merged.isPickable = true; // Pickable so hover cursor works on building body
           merged.alwaysSelectAsActiveMesh = false;
         }
       }

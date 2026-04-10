@@ -4,8 +4,13 @@ const path = require('node:path');
 const fs = require('node:fs');
 const { initAIService, disposeAIService } = require('./ai-service');
 
-// Increase renderer memory limit for large asset collections (1 GB+ of models/textures)
-app.commandLine.appendSwitch('js-flags', '--max-old-space-size=8192');
+// Increase V8 heap limit for large asset collections (models + textures + NPC data).
+// This affects both the main and renderer processes.
+app.commandLine.appendSwitch('js-flags', '--max-old-space-size=16384');
+// Prevent Chromium from throttling the renderer when backgrounded
+app.commandLine.appendSwitch('disable-renderer-backgrounding');
+// Force GPU rasterization for better WebGL/3D performance
+app.commandLine.appendSwitch('enable-gpu-rasterization');
 
 // The built directory structure
 // ├─┬ dist

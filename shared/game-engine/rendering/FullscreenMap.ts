@@ -347,7 +347,7 @@ export class FullscreenMap {
           indBg.width = '10px';
           indBg.height = '10px';
           indBg.thickness = 0;
-          if (npc.questIndicator === 'available') indBg.background = '#FFD700';
+          if (npc.questIndicator === 'available' || npc.questIndicator === 'objective') indBg.background = '#FFD700';
           else if (npc.questIndicator === 'turn_in') indBg.background = '#32CD32';
           else indBg.background = '#C0C0C0';
           indBg.left = `${nx}px`;
@@ -356,7 +356,7 @@ export class FullscreenMap {
           this._dynamicControls.push(indBg);
 
           const indText = new TextBlock(`fs-npc-qi-${npc.id}`);
-          indText.text = npc.questIndicator === 'available' ? '!' : npc.questIndicator === 'turn_in' ? '\u2713' : '?';
+          indText.text = npc.questIndicator === 'objective' ? '!' : npc.questIndicator === 'turn_in' ? '\u2713' : '?';
           indText.color = '#000000';
           indText.fontSize = 8;
           indText.fontWeight = 'bold';

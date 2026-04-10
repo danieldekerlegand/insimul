@@ -1631,7 +1631,7 @@ export class FileDataSource implements DataSource {
     }
   }
 
-  async loadWorld(worldId: string): Promise<any> {
+  async loadWorld(_worldId: string): Promise<any> {
     await this.waitForData();
     const meta = this.worldIR?.meta || {};
     return { ...meta, name: meta.worldName || meta.name || 'Unknown World' };

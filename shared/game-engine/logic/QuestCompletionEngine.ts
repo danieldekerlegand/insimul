@@ -15,7 +15,7 @@ import {
   matchesAllFields,
 } from '../quest-action-mapping';
 import { MIN_CONVERSATION_GOAL_CONFIDENCE } from './ConversationQuestBridge';
-import { normalizeObjectiveType } from '../../quest-objective-types';
+import { normalizeObjectiveType, OBJECTIVE_TYPE_DEFAULTS, getDefaultRequiredCount } from '../../quest-objective-types';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -394,6 +394,15 @@ export class QuestCompletionEngine {
         this.trackComprehensionAnswer(event.isCorrect, event.questId);
         break;
       case 'clue_discovered':
+        this.trackByTrigger('clue_discovered', event.questId);
+        this.forEachObjective(event.questId, 'collect_clue', (quest, obj) => {
+          obj.currentCount = (obj.currentCount || 0) + 1;
+          if (obj.currentCount >= (obj.requiredCount || 1)) {
+            this.completeObjective(quest.id, obj.id);
+          } else {
+            this.onObjectiveProgress?.(quest.id, obj.id, obj.currentCount, obj.requiredCount || 1, obj.type);
+          }
+        });
         break;
       case 'photo_taken':
         this.trackPhotoTaken(event.subjectName, event.subjectCategory, event.subjectActivity, event.questId);
@@ -404,29 +413,31 @@ export class QuestCompletionEngine {
       case 'reading_completed':
         this.trackByTrigger('reading_completed', event.questId);
         // Also match by type for legacy objectives without completionTrigger
-        this.forEachObjective(event.questId, ['arrival_reading', 'departure_reading'], (quest, obj) => {
+        this.forEachObjective(event.questId, ['reading', 'arrival_reading', 'departure_reading'], (quest, obj) => {
           this.completeObjective(quest.id, obj.id);
         });
         break;
       case 'listening_completed':
         this.trackByTrigger('listening_completed', event.questId);
-        this.forEachObjective(event.questId, ['arrival_listening', 'departure_listening'], (quest, obj) => {
+        this.forEachObjective(event.questId, ['listening', 'arrival_listening', 'departure_listening'], (quest, obj) => {
           this.completeObjective(quest.id, obj.id);
         });
         break;
       case 'npc_talked':
         this.trackByTrigger('npc_talked', event.questId);
-        this.forEachObjective(event.questId, 'arrival_initiate_conversation', (quest, obj) => {
+        this.forEachObjective(event.questId, ['initiate_conversation', 'arrival_initiate_conversation'], (quest, obj) => {
           if (obj.npcId && obj.npcId !== event.npcId) return;
           this.completeObjective(quest.id, obj.id);
         });
         break;
       case 'conversation_assessment_completed':
         // Validate turnCount for conversation assessment objectives (arrival, departure, periodic)
-        this.forEachObjective(event.questId, ['arrival_conversation', 'departure_conversation', 'periodic_conversational'], (quest, obj) => {
+        // 'conversation' is the canonical type from assessment-quest-bridge; legacy types kept for compatibility
+        this.forEachObjective(event.questId, ['conversation', 'arrival_conversation', 'departure_conversation', 'periodic_conversational'], (quest, obj) => {
           if (obj.npcId && obj.npcId !== event.npcId) return;
           obj.currentCount = event.turnCount;
-          if (event.turnCount >= (obj.requiredCount || 3)) {
+          const required = obj.requiredCount || getDefaultRequiredCount(obj.type);
+          if (event.turnCount >= required) {
             this.completeObjective(quest.id, obj.id);
           }
         });
@@ -622,7 +633,7 @@ export class QuestCompletionEngine {
 
       obj.wordsUsed.push(lowerWord);
       obj.currentCount = (obj.currentCount || 0) + 1;
-      const required = obj.requiredCount || 10;
+      const required = obj.requiredCount || getDefaultRequiredCount('use_vocabulary');
 
       if (obj.currentCount >= required) {
         this.completeObjective(quest.id, obj.id);
@@ -636,7 +647,7 @@ export class QuestCompletionEngine {
     // Track against both 'complete_conversation' and 'conversation' objective types
     this.forEachObjective(questId, ['complete_conversation', 'conversation'], (quest, obj) => {
       obj.currentCount = (obj.currentCount || 0) + 1;
-      const required = obj.requiredCount || 5;
+      const required = obj.requiredCount || getDefaultRequiredCount(obj.type);
 
       if (obj.currentCount >= required) {
         this.completeObjective(quest.id, obj.id);
@@ -651,7 +662,7 @@ export class QuestCompletionEngine {
   trackGrammarDemonstrated(patternCount: number, questId?: string): void {
     this.forEachObjective(questId, 'grammar', (quest, obj) => {
       obj.currentCount = (obj.currentCount || 0) + patternCount;
-      const required = obj.requiredCount || 2;
+      const required = obj.requiredCount || getDefaultRequiredCount('grammar');
       if (obj.currentCount >= required) {
         this.completeObjective(quest.id, obj.id);
       } else {
@@ -682,7 +693,7 @@ export class QuestCompletionEngine {
     this.forEachObjective(questId, 'listen_and_repeat', (quest, obj) => {
       if (!passed) return;
       obj.currentCount = (obj.currentCount || 0) + 1;
-      if (obj.currentCount >= (obj.requiredCount || 3)) {
+      if (obj.currentCount >= (obj.requiredCount || getDefaultRequiredCount('listen_and_repeat'))) {
         this.completeObjective(quest.id, obj.id);
       }
     });
@@ -691,7 +702,7 @@ export class QuestCompletionEngine {
   trackFriendshipBuilt(npcId: string, relationshipStrength: number, questId?: string): void {
     this.forEachObjective(questId, 'build_friendship', (quest, obj) => {
       if (obj.npcId && obj.npcId !== npcId) return;
-      const threshold = obj.requiredStrength ?? 0.5;
+      const threshold = obj.requiredStrength ?? OBJECTIVE_TYPE_DEFAULTS['build_friendship']?.requiredStrength ?? 0.5;
       if (relationshipStrength >= threshold) {
         this.completeObjective(quest.id, obj.id);
       }
@@ -864,7 +875,7 @@ export class QuestCompletionEngine {
       if (obj.factionId === factionId) {
         obj.reputationGained = (obj.reputationGained || 0) + amount;
 
-        if (obj.reputationGained >= (obj.reputationRequired || 100)) {
+        if (obj.reputationGained >= (obj.reputationRequired || OBJECTIVE_TYPE_DEFAULTS['gain_reputation']?.reputationRequired || 100)) {
           this.completeObjective(quest.id, obj.id);
         }
       }
@@ -879,7 +890,7 @@ export class QuestCompletionEngine {
       }
       obj.currentCount = obj.questionsAnswered;
 
-      const required = obj.requiredCount || obj.comprehensionQuestions?.length || 3;
+      const required = obj.requiredCount || obj.comprehensionQuestions?.length || getDefaultRequiredCount('listening_comprehension');
       if (obj.questionsCorrect! >= required) {
         this.completeObjective(quest.id, obj.id);
       }
@@ -894,7 +905,7 @@ export class QuestCompletionEngine {
       obj.translationsCompleted = (obj.translationsCompleted || 0) + 1;
       obj.currentCount = obj.translationsCorrect || 0;
 
-      const required = obj.requiredCount || obj.translationPhrases?.length || 3;
+      const required = obj.requiredCount || obj.translationPhrases?.length || getDefaultRequiredCount('translation_challenge');
       if (obj.translationsCorrect! >= required) {
         this.completeObjective(quest.id, obj.id);
       }
@@ -938,7 +949,7 @@ export class QuestCompletionEngine {
       if (passed) {
         obj.currentCount = (obj.currentCount || 0) + 1;
 
-        const required = obj.requiredCount || 3;
+        const required = obj.requiredCount || getDefaultRequiredCount('pronunciation_check');
         if (obj.currentCount >= required) {
           // If minAverageScore is set, check average before completing
           const scores = obj.pronunciationScores || [];
@@ -966,9 +977,10 @@ export class QuestCompletionEngine {
   }
 
   trackWritingSubmission(text: string, wordCount: number, questId?: string): void {
+    this.trackByTrigger('writing_submitted', questId);
     // Complete assessment writing objectives (arrival/departure) with word count validation
-    this.forEachObjective(questId, ['arrival_writing', 'departure_writing'], (quest, obj) => {
-      const minWords = obj.minWordCount || 20;
+    this.forEachObjective(questId, ['writing', 'arrival_writing', 'departure_writing'], (quest, obj) => {
+      const minWords = obj.minWordCount || OBJECTIVE_TYPE_DEFAULTS[obj.type]?.minWordCount || OBJECTIVE_TYPE_DEFAULTS['writing']?.minWordCount || 20;
       if (wordCount >= minWords) {
         this.completeObjective(quest.id, obj.id);
       }
@@ -1035,7 +1047,7 @@ export class QuestCompletionEngine {
       obj.wordsTaught.push(lowerWord);
       obj.currentCount = (obj.currentCount || 0) + 1;
 
-      if (obj.currentCount >= (obj.requiredCount || 3)) {
+      if (obj.currentCount >= (obj.requiredCount || getDefaultRequiredCount('teach_vocabulary'))) {
         this.completeObjective(quest.id, obj.id);
       }
     });
@@ -1222,7 +1234,7 @@ export class QuestCompletionEngine {
       }
       obj.currentCount = obj.quizCorrect || 0;
 
-      const required = obj.requiredCount || obj.quizQuestions?.length || 3;
+      const required = obj.requiredCount || obj.quizQuestions?.length || getDefaultRequiredCount('comprehension_quiz');
       const threshold = obj.quizPassThreshold ?? required;
       if (obj.quizCorrect! >= threshold) {
         this.completeObjective(quest.id, obj.id);
@@ -1289,7 +1301,7 @@ export class QuestCompletionEngine {
   trackActivityObserved(npcId: string, npcName: string, activity: string, durationSeconds: number, questId?: string): void {
     const lowerName = npcName.toLowerCase();
     const lowerActivity = activity.toLowerCase();
-    const requiredDuration = 5; // 5 seconds minimum observation
+    const defaultDuration = OBJECTIVE_TYPE_DEFAULTS['observe_activity']?.observeDurationSeconds ?? 5;
 
     this.forEachObjective(questId, 'observe_activity', (quest, obj) => {
       // If objective specifies a target NPC, it must match
@@ -1299,7 +1311,7 @@ export class QuestCompletionEngine {
       if (obj.targetActivity && !lowerActivity.includes(obj.targetActivity.toLowerCase())) return;
 
       // Must have observed for long enough
-      const required = obj.observeDurationRequired || requiredDuration;
+      const required = obj.observeDurationRequired || defaultDuration;
       if (durationSeconds < required) return;
 
       // Track unique NPC:activity observations
@@ -1502,10 +1514,11 @@ export class QuestCompletionEngine {
    * meets the required threshold (arrival, departure, periodic).
    */
   trackConversationTurnCounted(npcId: string, totalTurns: number, meaningfulTurns: number, questId?: string): void {
-    this.forEachObjective(questId, ['arrival_conversation', 'departure_conversation', 'periodic_conversational'], (quest, obj) => {
+    this.forEachObjective(questId, ['conversation', 'arrival_conversation', 'departure_conversation', 'periodic_conversational'], (quest, obj) => {
       if (obj.npcId && obj.npcId !== npcId) return;
       obj.currentCount = meaningfulTurns;
-      if (meaningfulTurns >= (obj.requiredCount || 3)) {
+      const required = obj.requiredCount || getDefaultRequiredCount(obj.type);
+      if (meaningfulTurns >= required) {
         this.completeObjective(quest.id, obj.id);
       }
     });

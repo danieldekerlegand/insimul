@@ -4,7 +4,7 @@ extends Node3D
 
 @export var road_color := Color({{ROAD_COLOR_R}}, {{ROAD_COLOR_G}}, {{ROAD_COLOR_B}})
 @export var road_width := {{ROAD_WIDTH}}
-@export var road_elevation := 0.05
+@export var road_elevation := 0.5
 
 ## Visual detail constants
 const SIDEWALK_WIDTH := 2.0
@@ -100,7 +100,13 @@ func generate_settlement_streets(settlement_id: String, street_network: Dictiona
 			continue
 		var points := _parse_waypoints(waypoints)
 		for i in range(points.size()):
-			points[i].y = sample_height.call(points[i].x, points[i].z) + road_elevation
+			# Sample center and offset positions; use the max so road clears terrain bumps
+			var cx: float = points[i].x
+			var cz: float = points[i].z
+			var center_y: float = sample_height.call(cx, cz)
+			var left_y: float = sample_height.call(cx - width * 0.5, cz)
+			var right_y: float = sample_height.call(cx + width * 0.5, cz)
+			points[i].y = maxf(center_y, maxf(left_y, right_y)) + road_elevation
 		var seg_name: String = "Street_%s_%s" % [settlement_id, seg.get("id", "")]
 		_create_road_mesh(seg_name, points, width)
 		_create_sidewalks(seg_name, points, width)
