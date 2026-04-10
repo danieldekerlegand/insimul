@@ -5,7 +5,7 @@
  * Assets are categorized by type: bodies, hair, outfits, accessories, and animals.
  */
 
-const BASE_PATH = './assets/models/characters/quaternius';
+const BASE_PATH = 'assets/models/characters/quaternius';
 
 export type Gender = 'male' | 'female';
 export type AssetFormat = 'glb' | 'gltf';

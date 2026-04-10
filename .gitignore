@@ -1,13 +1,45 @@
+# Build output
 dist
+dist-ssr
+
+# Dependencies
 node_modules
+
+# Environment / secrets
 *.env
-editor-repo/
+.env.*
+!.env.example
 
-# Generated PDFs
-*.pdf
+# Lock files (keep only one package manager's lock file)
+bun.lock
+pnpm-lock.yaml
 
+# OS files
 .DS_Store
 */.DS_Store/*
+Thumbs.db
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Large binary assets (stored in GCS: gs://insimul/assets/)
+client/public/assets/models/
+client/public/assets/textures/
+client/public/assets/audio/
+voices/
+*.wav
+*.mp3
+*.blend
+*.glb
+*.babylon
+*.ogg
+*.pdf
+
+# Generated files
+knowledge_base_*.pl
 
 .ralphy-worktrees
 .ralphy

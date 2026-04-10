@@ -37,22 +37,22 @@ export const SKETCHFAB_MODELS_BASE = 'assets/models/buildings/sketchfab';
 /** Base path for KayKit models (relative, no leading slash) */
 export const KAYKIT_BUILDINGS_BASE = 'assets/models/buildings/kaykit';
 
-// ─── Legacy / fallback models (absolute paths for client-side loading) ───────
+// ─── Legacy / fallback models (relative paths, resolved via AssetResolver) ───
 
 /** Legacy player model (GLB format) */
-export const PLAYER_MODEL_URL = '/assets/models/characters/legacy/Vincent-frontFacing.glb';
+export const PLAYER_MODEL_URL = 'assets/models/characters/legacy/Vincent-frontFacing.glb';
 
 /** Legacy NPC model (Babylon format) */
-export const NPC_DEFAULT_MODEL_URL = '/assets/models/characters/legacy/starterAvatars.babylon';
+export const NPC_DEFAULT_MODEL_URL = 'assets/models/characters/legacy/starterAvatars.babylon';
 
 /** Default footstep sound */
-export const FOOTSTEP_SOUND_URL = '/assets/audio/effects/footstep_carpet_000.ogg';
+export const FOOTSTEP_SOUND_URL = 'assets/audio/effects/footstep_carpet_000.ogg';
 
-// ─── Ground textures (absolute paths for client-side loading) ────────────────
+// ─── Ground textures (relative paths, resolved via AssetResolver) ────────────
 
-export const GROUND_DIFFUSE_URL = '/assets/textures/environment/ground.jpg';
-export const GROUND_NORMAL_URL = '/assets/textures/environment/ground-normal.png';
-export const GROUND_HEIGHTMAP_URL = '/assets/textures/environment/ground_heightMap.png';
+export const GROUND_DIFFUSE_URL = 'assets/textures/environment/ground.jpg';
+export const GROUND_NORMAL_URL = 'assets/textures/environment/ground-normal.png';
+export const GROUND_HEIGHTMAP_URL = 'assets/textures/environment/ground_heightMap.png';
 
 // ─── Helper functions ────────────────────────────────────────────────────────
 
@@ -62,7 +62,7 @@ export const GROUND_HEIGHTMAP_URL = '/assets/textures/environment/ground_heightM
  * @param filename - e.g. 'npc_male_average.glb'
  */
 export function characterModelUrl(genre: string, filename: string): string {
-  return `/${CHARACTERS_BASE}/${genre}/${filename}`;
+  return `${CHARACTERS_BASE}/${genre}/${filename}`;
 }
 
 /**

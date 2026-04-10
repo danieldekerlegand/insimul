@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { storage } from '../db/storage';
 import { AuthService } from "../services/auth-service";
+import { DEFAULT_ASSET_MOUNTS } from "../../shared/game-engine/asset-mount";
 
 export function registerAuthRoutes(app: Express) {
   // Register a new user
@@ -42,7 +43,11 @@ export function registerAuthRoutes(app: Express) {
       // Remove password hash from response
       const { passwordHash: _, ...userWithoutPassword } = user;
 
-      res.status(201).json({ user: userWithoutPassword, token });
+      res.status(201).json({
+        user: userWithoutPassword,
+        token,
+        assetMounts: DEFAULT_ASSET_MOUNTS,
+      });
     } catch (error) {
       console.error("Registration error:", error);
       res.status(500).json({ message: "Failed to register user" });
@@ -79,7 +84,11 @@ export function registerAuthRoutes(app: Express) {
       // Remove password hash from response
       const { passwordHash: _, ...userWithoutPassword } = user;
 
-      res.json({ user: userWithoutPassword, token });
+      res.json({
+        user: userWithoutPassword,
+        token,
+        assetMounts: (user as any).assetMounts || DEFAULT_ASSET_MOUNTS,
+      });
     } catch (error) {
       console.error("Login error:", error);
       res.status(500).json({ message: "Failed to login" });
@@ -108,7 +117,10 @@ export function registerAuthRoutes(app: Express) {
       // Remove password hash from response
       const { passwordHash: _, ...userWithoutPassword } = user;
 
-      res.json({ user: userWithoutPassword });
+      res.json({
+        user: userWithoutPassword,
+        assetMounts: (user as any).assetMounts || DEFAULT_ASSET_MOUNTS,
+      });
     } catch (error) {
       console.error("Verify error:", error);
       res.status(500).json({ message: "Failed to verify token" });
@@ -138,6 +150,65 @@ export function registerAuthRoutes(app: Express) {
     } catch (error) {
       console.error("Get user error:", error);
       res.status(500).json({ message: "Failed to get user" });
+    }
+  });
+
+  // ===== ASSET MOUNT ROUTES =====
+
+  // Public: get system default asset mounts (no auth required)
+  app.get("/api/config/assets", (_req, res) => {
+    res.json({ assetMounts: DEFAULT_ASSET_MOUNTS });
+  });
+
+  // Get current user's asset mounts
+  app.get("/api/user/asset-mounts", async (req, res) => {
+    try {
+      const token = AuthService.extractTokenFromHeader(req.headers.authorization);
+      if (!token) return res.status(401).json({ message: "Authentication required" });
+      const payload = AuthService.verifyToken(token);
+      if (!payload) return res.status(401).json({ message: "Invalid token" });
+
+      const user = await storage.getUser(payload.userId);
+      if (!user) return res.status(404).json({ message: "User not found" });
+
+      res.json({ assetMounts: (user as any).assetMounts || DEFAULT_ASSET_MOUNTS });
+    } catch (error) {
+      console.error("Get asset mounts error:", error);
+      res.status(500).json({ message: "Failed to get asset mounts" });
+    }
+  });
+
+  // Update current user's asset mounts
+  app.put("/api/user/asset-mounts", async (req, res) => {
+    try {
+      const token = AuthService.extractTokenFromHeader(req.headers.authorization);
+      if (!token) return res.status(401).json({ message: "Authentication required" });
+      const payload = AuthService.verifyToken(token);
+      if (!payload) return res.status(401).json({ message: "Invalid token" });
+
+      const { assetMounts } = req.body;
+      if (!Array.isArray(assetMounts)) {
+        return res.status(400).json({ message: "assetMounts must be an array" });
+      }
+
+      // Validate each mount entry
+      for (const mount of assetMounts) {
+        if (!mount.prefix || typeof mount.prefix !== 'string') {
+          return res.status(400).json({ message: "Each mount must have a string 'prefix'" });
+        }
+        if (!mount.baseUrl || typeof mount.baseUrl !== 'string') {
+          return res.status(400).json({ message: "Each mount must have a string 'baseUrl'" });
+        }
+        if (typeof mount.priority !== 'number') {
+          mount.priority = 0;
+        }
+      }
+
+      await storage.updateUser(payload.userId, { assetMounts } as any);
+      res.json({ assetMounts });
+    } catch (error) {
+      console.error("Update asset mounts error:", error);
+      res.status(500).json({ message: "Failed to update asset mounts" });
     }
   });
 

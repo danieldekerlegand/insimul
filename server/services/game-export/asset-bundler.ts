@@ -19,6 +19,8 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { KAYKIT_BUILDINGS_BASE } from '@shared/asset-paths';
+import { AssetResolver } from '@shared/game-engine/asset-resolver';
+import type { AssetMount } from '@shared/game-engine/asset-mount';
 
 // ─────────────────────────────────────────────
 // Types
@@ -422,6 +424,44 @@ function getAssetsBasePath(): string {
   console.log(`[AssetBundler] This dir: ${thisDir}`);
   
   return assetsPath;
+}
+
+/**
+ * Read an asset from local disk, falling back to HTTP fetch if the file
+ * doesn't exist locally. Uses the AssetResolver mount system so exports
+ * work even when local assets have been moved to cloud storage.
+ */
+export async function readAssetBuffer(
+  sourcePath: string,
+  basePath: string,
+  mounts?: AssetMount[] | null,
+): Promise<Buffer | null> {
+  // Try local first
+  const localPath = path.join(basePath, sourcePath);
+  if (fs.existsSync(localPath)) {
+    return fs.readFileSync(localPath);
+  }
+
+  // Fall back to remote via mount resolver
+  const resolver = new AssetResolver(mounts);
+  const url = resolver.resolve('assets/' + sourcePath);
+
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        console.warn(`[AssetBundler] HTTP ${response.status} fetching ${url}`);
+        return null;
+      }
+      return Buffer.from(await response.arrayBuffer());
+    } catch (err) {
+      console.warn(`[AssetBundler] Failed to fetch ${url}:`, err);
+      return null;
+    }
+  }
+
+  console.warn(`[AssetBundler] Asset not found: ${sourcePath} (local: ${localPath})`);
+  return null;
 }
 
 // ─────────────────────────────────────────────

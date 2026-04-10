@@ -31,32 +31,32 @@ import '@babylonjs/loaders/glTF';
  */
 const INTERIOR_MODEL_MAP: Record<string, string[]> = {
   // Taverns / Bars
-  Bar:        ['/assets/models/interiors/tavern/british_pub.glb', '/assets/models/interiors/tavern/old_bar.glb', '/assets/models/interiors/tavern/silent_hill_old_bar_2.glb', '/assets/models/interiors/tavern/food_bar.glb'],
-  Brewery:    ['/assets/models/interiors/tavern/british_pub.glb', '/assets/models/interiors/tavern/old_bar.glb'],
+  Bar:        ['assets/models/interiors/tavern/british_pub.glb', 'assets/models/interiors/tavern/old_bar.glb', 'assets/models/interiors/tavern/silent_hill_old_bar_2.glb', 'assets/models/interiors/tavern/food_bar.glb'],
+  Brewery:    ['assets/models/interiors/tavern/british_pub.glb', 'assets/models/interiors/tavern/old_bar.glb'],
 
   // Restaurants / Diners
-  Restaurant: ['/assets/models/interiors/restaurant/restaurant.glb', '/assets/models/interiors/restaurant/modern_diner.glb', '/assets/models/interiors/restaurant/for_pashapashas_diner.glb', '/assets/models/interiors/restaurant/restaurant_in_the_evening.glb'],
-  Bakery:     ['/assets/models/interiors/restaurant/modern_diner.glb', '/assets/models/interiors/restaurant/for_pashapashas_diner.glb'],
-  Hotel:      ['/assets/models/interiors/restaurant/restaurant_in_the_evening.glb'],
+  Restaurant: ['assets/models/interiors/restaurant/restaurant.glb', 'assets/models/interiors/restaurant/modern_diner.glb', 'assets/models/interiors/restaurant/for_pashapashas_diner.glb', 'assets/models/interiors/restaurant/restaurant_in_the_evening.glb'],
+  Bakery:     ['assets/models/interiors/restaurant/modern_diner.glb', 'assets/models/interiors/restaurant/for_pashapashas_diner.glb'],
+  Hotel:      ['assets/models/interiors/restaurant/restaurant_in_the_evening.glb'],
 
   // Shops / Stores
-  Shop:           ['/assets/models/interiors/shop/convenience_store_2.glb', '/assets/models/interiors/shop/one_stop.glb'],
-  GroceryStore:   ['/assets/models/interiors/shop/convenience_store_2.glb', '/assets/models/interiors/shop/one_stop.glb'],
-  Pharmacy:       ['/assets/models/interiors/shop/convenience_store_2.glb'],
-  JewelryStore:   ['/assets/models/interiors/shop/convenience_store_2.glb'],
-  BookStore:      ['/assets/models/interiors/shop/convenience_store_2.glb'],
-  HerbShop:       ['/assets/models/interiors/shop/convenience_store_2.glb'],
-  PawnShop:       ['/assets/models/interiors/shop/convenience_store_2.glb'],
+  Shop:           ['assets/models/interiors/shop/convenience_store_2.glb', 'assets/models/interiors/shop/one_stop.glb'],
+  GroceryStore:   ['assets/models/interiors/shop/convenience_store_2.glb', 'assets/models/interiors/shop/one_stop.glb'],
+  Pharmacy:       ['assets/models/interiors/shop/convenience_store_2.glb'],
+  JewelryStore:   ['assets/models/interiors/shop/convenience_store_2.glb'],
+  BookStore:      ['assets/models/interiors/shop/convenience_store_2.glb'],
+  HerbShop:       ['assets/models/interiors/shop/convenience_store_2.glb'],
+  PawnShop:       ['assets/models/interiors/shop/convenience_store_2.glb'],
 
   // Residences
-  residence:          ['/assets/models/interiors/residence/small_apartment_morning_version.glb', '/assets/models/interiors/residence/modern_apartment_interior.glb'],
-  residence_small:    ['/assets/models/interiors/residence/small_apartment_morning_version.glb'],
-  residence_large:    ['/assets/models/interiors/residence/modern_apartment_interior.glb'],
-  ApartmentComplex:   ['/assets/models/interiors/residence/modern_apartment_interior.glb', '/assets/models/interiors/residence/small_apartment_morning_version.glb'],
-  mansion:            ['/assets/models/interiors/residence/mansion_furnished.glb'],
+  residence:          ['assets/models/interiors/residence/small_apartment_morning_version.glb', 'assets/models/interiors/residence/modern_apartment_interior.glb'],
+  residence_small:    ['assets/models/interiors/residence/small_apartment_morning_version.glb'],
+  residence_large:    ['assets/models/interiors/residence/modern_apartment_interior.glb'],
+  ApartmentComplex:   ['assets/models/interiors/residence/modern_apartment_interior.glb', 'assets/models/interiors/residence/small_apartment_morning_version.glb'],
+  mansion:            ['assets/models/interiors/residence/mansion_furnished.glb'],
 
   // Church / Cathedral
-  Church: ['/assets/models/interiors/church/silent_hill_3_cathedral.glb'],
+  Church: ['assets/models/interiors/church/silent_hill_3_cathedral.glb'],
 };
 
 /** Get the interior model path for a given business/building type. */

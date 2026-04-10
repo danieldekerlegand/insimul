@@ -24,7 +24,7 @@ interface BabylonWorldProps {
 }
 
 export function BabylonWorld({ worldId, worldName, worldType, playthroughId, saveId, onBack }: BabylonWorldProps) {
-  const { token } = useAuth();
+  const { token, assetMounts } = useAuth();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const gameRef = useRef<BabylonGame | null>(null);
   const dataSourceRef = useRef<SaveFileDataSource | null>(null);
@@ -98,6 +98,7 @@ export function BabylonWorld({ worldId, worldName, worldType, playthroughId, sav
           authToken: token!,
           playthroughId: saveFile._showSelectionMenu ? undefined : saveFile.id,
           dataSource: ds,
+          assetMounts,
           onBack: () => {
             ds.persistToServer().catch(console.error);
             onBackRef.current();

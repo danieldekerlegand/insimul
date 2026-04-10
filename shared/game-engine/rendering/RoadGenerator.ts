@@ -92,7 +92,7 @@ export class RoadGenerator {
   public loadDefaultAsphaltTexture(): void {
     if (this.roadTexture) return; // Already has a texture
     const tex = new Texture(
-      '/assets/textures/polyhaven/asphalt_04/asphalt_04_diff_1k.jpg',
+      'assets/textures/polyhaven/asphalt_04/asphalt_04_diff_1k.jpg',
       this.scene
     );
     tex.uScale = 1;

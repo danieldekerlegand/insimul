@@ -9,6 +9,9 @@ exports
 models
 sources
 tasks
+client/public/assets/models
+client/public/assets/textures
+client/public/assets/audio
 *.pdf
 *.env
 .env*

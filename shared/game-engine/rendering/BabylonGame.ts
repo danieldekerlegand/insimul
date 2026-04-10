@@ -262,6 +262,7 @@ import {
   GROUND_NORMAL_URL,
   GROUND_HEIGHTMAP_URL,
 } from "@shared/asset-paths";
+import { AssetResolver } from "@shared/game-engine/asset-resolver";
 
 // Constants
 const NPC_MODEL_URL = NPC_DEFAULT_MODEL_URL;
@@ -400,6 +401,8 @@ interface BabylonGameConfig {
   dataSource?: DataSource;
   /** API server URL for cloud saves in standalone/Electron mode (e.g., 'http://localhost:8080') */
   apiUrl?: string;
+  /** Per-user asset mount points for resolving asset URLs */
+  assetMounts?: Array<{ prefix: string; baseUrl: string; priority: number }>;
 }
 
 /** Clean Prolog syntax from objective descriptions for end-user display */
@@ -949,6 +952,16 @@ export class BabylonGame {
     this.dataSource = config.dataSource || createDataSource(config.authToken);
     this.worldTheme = computeWorldVisualTheme(config.worldType);
     // ScheduleExecutor is created after eventBus is available (in init)
+
+    // Set up per-user asset resolution via configurable mount points.
+    // All Babylon.js asset loads (SceneLoader, Texture, Sound) flow through
+    // Tools.PreprocessUrl, so this single hook handles everything.
+    AssetResolver.setGlobal(new AssetResolver(config.assetMounts));
+    const originalPreprocess = Tools.PreprocessUrl;
+    Tools.PreprocessUrl = (url: string): string => {
+      const preprocessed = originalPreprocess(url);
+      return AssetResolver.global().resolve(preprocessed);
+    };
   }
 
   /**
@@ -10881,7 +10894,7 @@ Requirements:
 
       this.musicSettlement1 = new Sound(
         'music_settlement1',
-        '/assets/audio/music/Foggy Meadows Alt LOOP.wav',
+        'assets/audio/music/Foggy Meadows Alt LOOP.wav',
         this.scene,
         null,
         { loop: true, autoplay: false, volume: VOLUME_NORMAL }
@@ -10889,7 +10902,7 @@ Requirements:
 
       this.musicSettlement2 = new Sound(
         'music_settlement2',
-        '/assets/audio/music/Northern Village LOOP.wav',
+        'assets/audio/music/Northern Village LOOP.wav',
         this.scene,
         null,
         { loop: true, autoplay: false, volume: VOLUME_NORMAL }
@@ -10897,7 +10910,7 @@ Requirements:
 
       this.musicWilderness = new Sound(
         'music_wilderness',
-        '/assets/audio/music/Forests LOOP.wav',
+        'assets/audio/music/Forests LOOP.wav',
         this.scene,
         null,
         { loop: true, autoplay: false, volume: VOLUME_NORMAL }

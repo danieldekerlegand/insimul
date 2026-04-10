@@ -613,6 +613,7 @@ const UserSchema = new Schema({
   isActive: { type: Boolean, default: true },
   isVerified: { type: Boolean, default: false },
   apiKey: { type: String, unique: true, sparse: true },
+  assetMounts: { type: [Schema.Types.Mixed], default: null },
   lastLoginAt: { type: Date, default: null },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }

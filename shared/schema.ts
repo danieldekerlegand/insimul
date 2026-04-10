@@ -1283,6 +1283,10 @@ export const users = pgTable("users", {
   // API key for telemetry and external integrations
   apiKey: text("api_key").unique(),
 
+  // Asset mount points — per-user configuration for asset sources
+  // null = use system defaults (GCS bucket)
+  assetMounts: jsonb("asset_mounts").$type<Array<{ prefix: string; baseUrl: string; priority: number }>>(),
+
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
