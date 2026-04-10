@@ -6,8 +6,8 @@ editor-repo/
 # Generated PDFs
 *.pdf
 
-*.DS_Store
-*/.DS_Store
+.DS_Store
+*/.DS_Store/*
 
 .ralphy-worktrees
 .ralphy
@@ -17,3 +17,5 @@ models/
 
 # Ignore exports
 exports/
+
+.claude/
